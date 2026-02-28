@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>开发者超级工具箱 - DevToolkit</title>
+  <title>开发者工具箱 - DevToolkit</title>
   
   <!-- 引入 React 和 ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -546,6 +546,7 @@
       const [leftText, setLeftText] = useState('');
       const [rightText, setRightText] = useState('');
       const [diffRows, setDiffRows] = useState(null);
+      const [diffStats, setDiffStats] = useState(null);
       const [isComparing, setIsComparing] = useState(false);
       const containerRef = useRef(null);
 
@@ -564,11 +565,15 @@
             return;
         }
 
-        // 将一维差异数组转换为左右两边对齐的行
         const rows = [];
         let i = 0;
         let leftLineNum = 1;
         let rightLineNum = 1;
+
+        // 统计变量：无额外性能开销
+        let additions = 0;
+        let deletions = 0;
+        let modifications = 0;
 
         while (i < result.length) {
             const current = result[i];
@@ -584,12 +589,14 @@
                         left: current, right: result[i+1],
                         leftNum: leftLineNum++, rightNum: rightLineNum++
                     });
+                    modifications++;
                     i += 2;
                 } else {
                     rows.push({ 
                         left: current, right: null,
                         leftNum: leftLineNum++, rightNum: ''
                     });
+                    deletions++;
                     i++;
                 }
             } else if (current.type === 'added') {
@@ -597,10 +604,13 @@
                     left: null, right: current,
                     leftNum: '', rightNum: rightLineNum++
                 });
+                additions++;
                 i++;
             }
         }
+        
         setDiffRows(rows);
+        setDiffStats({ added: additions, removed: deletions, modified: modifications, total: additions + deletions + modifications });
         setIsComparing(true);
       };
 
@@ -621,15 +631,29 @@
                 <>
                     <Button onClick={handleCompare} icon="code-compare" variant="primary">开始智能对比</Button>
                     <p className="text-gray-500 text-sm ml-4 flex-1">支持智能格式化后对比，将为您展示直观的左右分栏视图。</p>
-                    <Button onClick={() => { setLeftText(''); setRightText(''); setDiffRows(null); }} variant="danger" icon="trash-can">清空</Button>
+                    <Button onClick={() => { setLeftText(''); setRightText(''); setDiffRows(null); setDiffStats(null); }} variant="danger" icon="trash-can">清空</Button>
                 </>
             ) : (
                 <>
                     <Button onClick={() => setIsComparing(false)} icon="arrow-left" variant="secondary">返回编辑</Button>
-                    <p className="text-gray-500 text-sm ml-4 flex-1">
-                        对比结果：<span className="text-red-500">红色为删除</span>，<span className="text-green-500">绿色为新增</span>，<span className="text-blue-500">蓝色为修改</span>。
-                        <span className="font-semibold text-gray-700 ml-2">👉 提示：可点击最右侧导航条快速跳转。</span>
-                    </p>
+                    
+                    {/* 智能分析统计面板区 */}
+                    {diffStats && diffStats.total === 0 ? (
+                        <div className="text-sm ml-4 flex-1 flex items-center text-green-600 font-semibold bg-green-50 px-3 py-1.5 rounded-md border border-green-200 w-max">
+                            <i className="fas fa-circle-check mr-2"></i> 两个文件完全一致！
+                        </div>
+                    ) : (
+                        <div className="text-sm ml-4 flex-1 flex items-center flex-wrap gap-2">
+                            <span className="font-semibold text-gray-700">发现 {diffStats?.total} 处差异：</span>
+                            {diffStats?.added > 0 && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs border border-green-200">新增 {diffStats.added} 行</span>}
+                            {diffStats?.removed > 0 && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs border border-red-200">删除 {diffStats.removed} 行</span>}
+                            {diffStats?.modified > 0 && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs border border-blue-200">修改 {diffStats.modified} 行</span>}
+                            
+                            <span className="text-gray-400 ml-4 flex items-center text-xs">
+                                <i className="fas fa-hand-pointer mr-1"></i> 提示：可点击最右侧导航条快速跳转
+                            </span>
+                        </div>
+                    )}
                 </>
             )}
           </div>
