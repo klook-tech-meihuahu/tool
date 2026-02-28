@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>开发者超级工具箱 - DevToolkit</title>
+  <title>开发者工具箱 - DevToolkit</title>
   
   <!-- 引入 React 和 ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -116,13 +116,47 @@
       return imports + Object.values(classes).join("\n\n");
     };
 
-    const computeDiff = (oldStr, newStr) => {
+    const formatXml = (xml) => {
+      let formatted = '';
+      let pad = 0;
+      let tempXml = xml.replace(/(>)(<)(\/*)/g, '$1\n$2$3');
+      tempXml.split('\n').forEach((line) => {
+        let indent = 0;
+        if (line.match(/.+<\/\w[^>]*>$/)) {
+          indent = 0;
+        } else if (line.match(/^<\/\w/)) {
+          if (pad !== 0) pad -= 1;
+        } else if (line.match(/^<\w[^>]*[^\/]>.*$/)) {
+          indent = 1;
+        } else {
+          indent = 0;
+        }
+        formatted += '  '.repeat(pad) + line + '\n';
+        pad += indent;
+      });
+      return formatted.trim();
+    };
+
+    const minifyXml = (xml) => {
+      return xml.replace(/>\s+</g, '><').replace(/\r?\n|\r/g, '').trim();
+    };
+
+    const computeDiff = (oldStr, newStr, type = 'json') => {
       try {
-        const linesA = JSON.stringify(JSON.parse(oldStr), null, 2).split('\n');
-        const linesB = JSON.stringify(JSON.parse(newStr), null, 2).split('\n');
+        let linesA, linesB;
+        if (type === 'json') {
+          linesA = JSON.stringify(JSON.parse(oldStr), null, 2).split('\n');
+          linesB = JSON.stringify(JSON.parse(newStr), null, 2).split('\n');
+        } else if (type === 'xml') {
+          linesA = formatXml(oldStr).split('\n');
+          linesB = formatXml(newStr).split('\n');
+        } else {
+          linesA = oldStr.split('\n');
+          linesB = newStr.split('\n');
+        }
         
         if (linesA.length * linesB.length > 4000000) {
-          return [{ type: 'error', value: 'JSON 数据过大，无法进行精细对比' }];
+          return [{ type: 'error', value: '数据过大，无法进行精细对比' }];
         }
 
         const m = linesA.length, n = linesB.length;
@@ -151,7 +185,7 @@
         }
         return result;
       } catch (e) {
-        return [{ type: 'error', value: '解析 JSON 失败，请确保两边都是合法的 JSON' }];
+        return [{ type: 'error', value: '解析失败，请确保两边格式正确' }];
       }
     };
 
@@ -184,7 +218,7 @@
       );
     };
 
-    const Button = ({ onClick, children, variant = 'primary', icon, className = "" }) => {
+    const Button = ({ onClick, children, variant = 'primary', icon, className = "", isActive = false }) => {
       const baseStyle = "flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm";
       const variants = {
         primary: "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 border border-blue-600",
@@ -193,8 +227,12 @@
         outline: "bg-transparent hover:bg-gray-100 text-gray-600 focus:ring-gray-200 border border-gray-300",
       };
 
+      const activeStyles = isActive 
+        ? "ring-2 ring-offset-1 ring-blue-500 shadow-md transform scale-[0.98] !border-blue-500" + (variant === 'secondary' ? " bg-blue-50 text-blue-700" : "")
+        : "";
+
       return (
-        <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${className}`}>
+        <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${activeStyles} ${className}`}>
           {icon && <i className={`fas fa-${icon} mr-2`}></i>}
           {children}
         </button>
@@ -225,15 +263,17 @@
     const JsonToolkit = ({ showToast }) => {
       const [input, setInput] = useState('');
       const [output, setOutput] = useState('');
+      const [activeAction, setActiveAction] = useState('format');
 
-      const handleAction = (action) => {
+      // 监听输入和动作变化，自动处理
+      useEffect(() => {
         if (!input.trim()) {
-          showToast("输入不能为空", "error");
+          setOutput('');
           return;
         }
         try {
           let res = '';
-          switch (action) {
+          switch (activeAction) {
             case 'format':
               res = JSON.stringify(JSON.parse(input), null, 4);
               break;
@@ -256,26 +296,31 @@
             default: break;
           }
           setOutput(res);
-          showToast("处理成功", "success");
         } catch (err) {
-          showToast(`处理失败: ${err.message}`, "error");
+          // 仅在输出区提示以免打断用户正常输入
+          setOutput(`// 解析失败: ${err.message}\n// 请检查 JSON 格式是否正确...`);
         }
+      }, [input, activeAction]);
+
+      const handleActionClick = (action) => {
+        setActiveAction(action);
+        if (input.trim()) showToast(`已切换至: ${action}`, "success");
       };
 
       return (
         <div className="flex flex-col h-full space-y-4">
           <div className="flex flex-wrap gap-3 p-1">
-            <Button onClick={() => handleAction('format')} icon="align-left">格式化 (Beautify)</Button>
-            <Button onClick={() => handleAction('minify')} icon="compress" variant="secondary">压缩 (Minify)</Button>
-            <Button onClick={() => handleAction('escape')} icon="arrow-right-arrow-left" variant="secondary">转义 (Escape)</Button>
-            <Button onClick={() => handleAction('unescape')} icon="layer-group" variant="secondary">去转义 (Unescape)</Button>
+            <Button isActive={activeAction === 'format'} onClick={() => handleActionClick('format')} icon="align-left">格式化 (Beautify)</Button>
+            <Button isActive={activeAction === 'minify'} onClick={() => handleActionClick('minify')} icon="compress" variant="secondary">压缩 (Minify)</Button>
+            <Button isActive={activeAction === 'escape'} onClick={() => handleActionClick('escape')} icon="arrow-right-arrow-left" variant="secondary">转义 (Escape)</Button>
+            <Button isActive={activeAction === 'unescape'} onClick={() => handleActionClick('unescape')} icon="layer-group" variant="secondary">去转义 (Unescape)</Button>
             <div className="flex-1"></div>
             <Button onClick={() => setInput('{\n  "demo": true,\n  "message": "Hello World"\n}')} variant="outline" icon="code">填入示例</Button>
             <Button onClick={() => { setInput(''); setOutput(''); }} variant="danger" icon="trash-can">清空</Button>
           </div>
 
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-            <TextAreaPanel label="输入区 (Input)" value={input} onChange={(e) => setInput(e.target.value)} placeholder="粘贴您的 JSON 字符串到这里..." />
+            <TextAreaPanel label="输入区 (Input)" value={input} onChange={(e) => setInput(e.target.value)} placeholder="粘贴您的 JSON 字符串到这里，将自动处理..." />
             <TextAreaPanel 
               label="输出区 (Output)" 
               value={output} 
@@ -292,18 +337,79 @@
       );
     };
 
-    const JsonDiff = ({ showToast }) => {
-      const [leftJson, setLeftJson] = useState('');
-      const [rightJson, setRightJson] = useState('');
-      const [diffRows, setDiffRows] = useState(null);
-      const [isComparing, setIsComparing] = useState(false);
+    const XmlToolkit = ({ showToast }) => {
+      const [input, setInput] = useState('');
+      const [output, setOutput] = useState('');
+      const [activeAction, setActiveAction] = useState('format');
 
-      const handleCompare = () => {
-        if (!leftJson.trim() || !rightJson.trim()) {
-          showToast("请在两边都输入 JSON 内容", "error");
+      useEffect(() => {
+        if (!input.trim()) {
+          setOutput('');
           return;
         }
-        const result = computeDiff(leftJson, rightJson);
+        try {
+          let res = '';
+          if (activeAction === 'format') {
+            res = formatXml(input);
+          } else if (activeAction === 'minify') {
+            res = minifyXml(input);
+          }
+          setOutput(res);
+        } catch (err) {
+          setOutput(`<!-- 解析失败: ${err.message} -->`);
+        }
+      }, [input, activeAction]);
+
+      const handleActionClick = (action) => {
+        setActiveAction(action);
+        if (input.trim()) showToast(`已切换至: ${action}`, "success");
+      };
+
+      return (
+        <div className="flex flex-col h-full space-y-4">
+          <div className="flex flex-wrap gap-3 p-1">
+            <Button isActive={activeAction === 'format'} onClick={() => handleActionClick('format')} icon="align-left">格式化 (Beautify)</Button>
+            <Button isActive={activeAction === 'minify'} onClick={() => handleActionClick('minify')} icon="compress" variant="secondary">压缩 (Minify)</Button>
+            <div className="flex-1"></div>
+            <Button onClick={() => setInput('<note>\n<to>Tove</to>\n<from>Jani</from>\n<body>Don\'t forget me this weekend!</body>\n</note>')} variant="outline" icon="code">填入示例</Button>
+            <Button onClick={() => { setInput(''); setOutput(''); }} variant="danger" icon="trash-can">清空</Button>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+            <TextAreaPanel label="XML 输入区 (Input)" value={input} onChange={(e) => setInput(e.target.value)} placeholder="粘贴您的 XML 字符串到这里，将自动处理..." />
+            <TextAreaPanel 
+              label="XML 输出区 (Output)" 
+              value={output} 
+              readOnly 
+              placeholder="处理后的结果会显示在这里..."
+              extraAction={
+                <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors" title="复制结果">
+                  <i className="fas fa-copy"></i>
+                </button>
+              }
+            />
+          </div>
+        </div>
+      );
+    };
+
+    const DiffTool = ({ showToast, mode = 'json' }) => {
+      const [leftText, setLeftText] = useState('');
+      const [rightText, setRightText] = useState('');
+      const [diffRows, setDiffRows] = useState(null);
+      const [isComparing, setIsComparing] = useState(false);
+      const containerRef = useRef(null);
+
+      const titleA = mode === 'json' ? '原始 JSON (A)' : '原始 XML (A)';
+      const titleB = mode === 'json' ? '修改后 JSON (B)' : '修改后 XML (B)';
+      const modeName = mode === 'json' ? 'JSON' : 'XML';
+
+      const handleCompare = () => {
+        if (!leftText.trim() || !rightText.trim()) {
+          showToast(`请在两边都输入 ${modeName} 内容`, "error");
+          return;
+        }
+        const result = computeDiff(leftText, rightText, mode);
         if (result.length > 0 && result[0].type === 'error') {
             showToast(result[0].value, "error");
             return;
@@ -324,7 +430,6 @@
                 });
                 i++;
             } else if (current.type === 'removed') {
-                // 如果紧跟着一个 added，说明是修改，将它们放在同一行对比
                 if (i + 1 < result.length && result[i+1].type === 'added') {
                     rows.push({ 
                         left: current, right: result[i+1],
@@ -350,6 +455,16 @@
         setIsComparing(true);
       };
 
+      // 处理右侧 Minimap 导航条的点击跳转
+      const handleMinimapClick = (e) => {
+        if (!containerRef.current) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const percentage = y / rect.height;
+        // 计算目标滚动位置，并减去可视区域的一半，让目标差异尽可能居中
+        containerRef.current.scrollTop = (containerRef.current.scrollHeight * percentage) - (containerRef.current.clientHeight / 2);
+      };
+
       return (
         <div className="flex flex-col h-full space-y-4">
           <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
@@ -357,59 +472,99 @@
                 <>
                     <Button onClick={handleCompare} icon="code-compare" variant="primary">开始智能对比</Button>
                     <p className="text-gray-500 text-sm ml-4 flex-1">支持智能格式化后对比，将为您展示直观的左右分栏视图。</p>
-                    <Button onClick={() => { setLeftJson(''); setRightJson(''); setDiffRows(null); }} variant="danger" icon="trash-can">清空</Button>
+                    <Button onClick={() => { setLeftText(''); setRightText(''); setDiffRows(null); }} variant="danger" icon="trash-can">清空</Button>
                 </>
             ) : (
                 <>
                     <Button onClick={() => setIsComparing(false)} icon="arrow-left" variant="secondary">返回编辑</Button>
-                    <p className="text-gray-500 text-sm ml-4 flex-1">对比结果：<span className="text-red-500">红色为删除的内容</span>，<span className="text-green-500">绿色为新增的内容</span>。</p>
+                    <p className="text-gray-500 text-sm ml-4 flex-1">
+                        对比结果：<span className="text-red-500">红色为删除</span>，<span className="text-green-500">绿色为新增</span>，<span className="text-blue-500">蓝色为修改</span>。
+                        <span className="font-semibold text-gray-700 ml-2">👉 提示：可点击最右侧导航条快速跳转。</span>
+                    </p>
                 </>
             )}
           </div>
 
           {!isComparing ? (
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[300px]">
-              <TextAreaPanel label="原始 JSON (A)" value={leftJson} onChange={(e) => setLeftJson(e.target.value)} placeholder="输入旧的 JSON..." />
-              <TextAreaPanel label="修改后 JSON (B)" value={rightJson} onChange={(e) => setRightJson(e.target.value)} placeholder="输入新的 JSON..." />
+              <TextAreaPanel label={titleA} value={leftText} onChange={(e) => setLeftText(e.target.value)} placeholder={`输入旧的 ${modeName}...`} />
+              <TextAreaPanel label={titleB} value={rightText} onChange={(e) => setRightText(e.target.value)} placeholder={`输入新的 ${modeName}...`} />
             </div>
           ) : (
-            <div className="flex-1 bg-white border border-gray-200 rounded-lg overflow-auto custom-scrollbar shadow-sm min-h-[300px]">
-              <div className="min-w-[800px] w-full flex flex-col font-mono text-sm">
-                  {/* 悬浮表头 */}
-                  <div className="flex sticky top-0 bg-gray-100 border-b border-gray-300 shadow-sm z-10 text-gray-600 font-semibold text-xs uppercase tracking-wider">
-                      <div className="w-1/2 flex px-4 py-2 border-r border-gray-300">原始 JSON (A)</div>
-                      <div className="w-1/2 flex px-4 py-2">修改后 JSON (B)</div>
-                  </div>
-                  
-                  {/* 对齐的差异行 */}
-                  {diffRows.map((row, idx) => (
-                      <div key={idx} className="flex border-b border-gray-100/50 last:border-0 hover:bg-gray-50/80 transition-colors">
-                          {/* 左面板 */}
-                          <div className={`w-1/2 flex border-r border-gray-200 ${row.left?.type === 'removed' ? 'bg-red-50 text-red-800' : 'text-gray-700'}`}>
-                              <div className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right pr-2 py-1 text-xs text-gray-400 select-none">
-                                  {row.leftNum}
-                              </div>
-                              <div className="px-3 py-1 whitespace-pre overflow-hidden text-ellipsis flex-1">
-                                  {row.left ? row.left.value : ' '}
-                              </div>
-                          </div>
-                          {/* 右面板 */}
-                          <div className={`w-1/2 flex ${row.right?.type === 'added' ? 'bg-green-50 text-green-800' : 'text-gray-700'}`}>
-                              <div className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right pr-2 py-1 text-xs text-gray-400 select-none">
-                                  {row.rightNum}
-                              </div>
-                              <div className="px-3 py-1 whitespace-pre overflow-hidden text-ellipsis flex-1">
-                                  {row.right ? row.right.value : ' '}
-                              </div>
-                          </div>
-                      </div>
-                  ))}
+            <div className="flex-1 relative flex bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm min-h-[300px]">
+              {/* 主代码对比区 */}
+              <div ref={containerRef} className="flex-1 overflow-auto custom-scrollbar scroll-smooth">
+                <div className="min-w-[800px] w-full flex flex-col font-mono text-sm">
+                    {/* 悬浮表头 */}
+                    <div className="flex sticky top-0 bg-gray-100 border-b border-gray-300 shadow-sm z-10 text-gray-600 font-semibold text-xs uppercase tracking-wider">
+                        <div className="w-1/2 flex px-4 py-2 border-r border-gray-300">{titleA}</div>
+                        <div className="w-1/2 flex px-4 py-2">{titleB}</div>
+                    </div>
+                    
+                    {/* 对齐的差异行 */}
+                    {diffRows.map((row, idx) => (
+                        <div key={idx} className="flex border-b border-gray-100/50 last:border-0 hover:bg-gray-50/80 transition-colors">
+                            {/* 左面板 */}
+                            <div className={`w-1/2 flex border-r border-gray-200 ${row.left?.type === 'removed' ? 'bg-red-50 text-red-800' : 'text-gray-700'}`}>
+                                <div className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right pr-2 py-1 text-xs text-gray-400 select-none">
+                                    {row.leftNum}
+                                </div>
+                                <div className="px-3 py-1 whitespace-pre overflow-hidden text-ellipsis flex-1">
+                                    {row.left ? row.left.value : ' '}
+                                </div>
+                            </div>
+                            {/* 右面板 */}
+                            <div className={`w-1/2 flex ${row.right?.type === 'added' ? 'bg-green-50 text-green-800' : 'text-gray-700'}`}>
+                                <div className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right pr-2 py-1 text-xs text-gray-400 select-none">
+                                    {row.rightNum}
+                                </div>
+                                <div className="px-3 py-1 whitespace-pre overflow-hidden text-ellipsis flex-1">
+                                    {row.right ? row.right.value : ' '}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* 右侧 Minimap 差异概览滚动条 */}
+              <div 
+                  className="w-4 bg-gray-50 border-l border-gray-200 shrink-0 relative cursor-pointer hover:bg-gray-200 transition-colors z-10"
+                  onClick={handleMinimapClick}
+                  title="点击快速跳转至差异位置"
+              >
+                  {diffRows.map((row, idx) => {
+                      const isLeftRemoved = row.left?.type === 'removed';
+                      const isRightAdded = row.right?.type === 'added';
+                      
+                      if (!isLeftRemoved && !isRightAdded) return null; // 相同行不绘制颜色
+
+                      let bgColor = '';
+                      if (isLeftRemoved && isRightAdded) bgColor = 'bg-blue-400'; // 同行修改为蓝色
+                      else if (isLeftRemoved) bgColor = 'bg-red-400';             // 删除为红色
+                      else if (isRightAdded) bgColor = 'bg-green-400';            // 新增为绿色
+
+                      return (
+                          <div 
+                              key={idx}
+                              className={`absolute w-full opacity-80 ${bgColor}`}
+                              style={{ 
+                                  top: `${(idx / diffRows.length) * 100}%`,
+                                  height: `${Math.max(1, 100 / diffRows.length)}%`,
+                                  minHeight: '3px' // 保证单行也能看清
+                              }}
+                          />
+                      );
+                  })}
               </div>
             </div>
           )}
         </div>
       );
     };
+
+    const JsonDiff = ({ showToast }) => <DiffTool showToast={showToast} mode="json" />;
+    const XmlDiff = ({ showToast }) => <DiffTool showToast={showToast} mode="xml" />;
 
     const JsonToJava = ({ showToast }) => {
       const [input, setInput] = useState('');
@@ -542,7 +697,9 @@
 
       const tabs = [
         { id: 'json', label: 'JSON 全能工具', icon: 'file-code' },
-        { id: 'diff', label: 'JSON 对比 (Diff)', icon: 'file-signature' },
+        { id: 'json-diff', label: 'JSON 对比 (Diff)', icon: 'file-signature' },
+        { id: 'xml', label: 'XML 全能工具', icon: 'file-lines' },
+        { id: 'xml-diff', label: 'XML 对比 (Diff)', icon: 'code-compare' },
         { id: 'java', label: 'JSON 转 Java', icon: 'layer-group' },
         { id: 'tools', label: '常用开发工具', icon: 'terminal' },
       ];
@@ -600,7 +757,9 @@
             {/* 内容主体 */}
             <div className="flex-1 p-4 md:p-6 overflow-hidden">
               {activeTab === 'json' && <JsonToolkit showToast={showToast} />}
-              {activeTab === 'diff' && <JsonDiff showToast={showToast} />}
+              {activeTab === 'json-diff' && <JsonDiff showToast={showToast} />}
+              {activeTab === 'xml' && <XmlToolkit showToast={showToast} />}
+              {activeTab === 'xml-diff' && <XmlDiff showToast={showToast} />}
               {activeTab === 'java' && <JsonToJava showToast={showToast} />}
               {activeTab === 'tools' && <DevTools showToast={showToast} />}
             </div>
