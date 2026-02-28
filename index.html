@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>开发者超级工具箱 - DevToolkit</title>
+  
+  <!-- 引入 React 和 ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- 引入 Babel 用于在浏览器中编译 JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 引入 FontAwesome 图标库 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    /* 自定义亮色系滚动条 */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f8fafc;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    /* 隐藏未编译的 React 代码，防止页面闪烁 */
+    script[type="text/babel"] {
+      display: none;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased selection:bg-blue-200">
+  
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- 实用工具函数 ---
+
+    const copyToClipboard = (text, onSuccess, onError) => {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(onError);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          onSuccess();
+        } catch (err) {
+          onError();
+        }
+        textArea.remove();
+      }
+    };
+
+    const generateJavaClass = (jsonStr, rootClassName = "RootEntity") => {
+      let obj;
+      try {
+        obj = JSON.parse(jsonStr);
+      } catch (e) {
+        throw new Error("无效的 JSON 格式，请检查后再试");
+      }
+
+      const classes = {};
+      const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+      const parseObject = (name, data) => {
+        if (data === null) return "Object";
+        if (Array.isArray(data)) {
+          if (data.length === 0) return "List<Object>";
+          const itemType = parseObject(name.endsWith('s') ? name.slice(0, -1) : name + "Item", data[0]);
+          return `List<${itemType}>`;
+        }
+        if (typeof data === "object") {
+          let fields = "";
+          let className = capitalize(name);
+          for (const key in data) {
+            const type = parseObject(key, data[key]);
+            fields += `    private ${type} ${key};\n`;
+          }
+          let classDef = `public class ${className} {\n\n${fields}\n    // 省略 Getter 和 Setter\n}`;
+          classes[className] = classDef;
+          return className;
+        }
+        if (typeof data === "string") return "String";
+        if (typeof data === "number") return Number.isInteger(data) ? "Integer" : "Double";
+        if (typeof data === "boolean") return "Boolean";
+        return "Object";
+      };
+
+      parseObject(rootClassName, obj);
+      const imports = "import java.util.List;\n\n";
+      return imports + Object.values(classes).join("\n\n");
+    };
+
+    const computeDiff = (oldStr, newStr) => {
+      try {
+        const linesA = JSON.stringify(JSON.parse(oldStr), null, 2).split('\n');
+        const linesB = JSON.stringify(JSON.parse(newStr), null, 2).split('\n');
+        
+        if (linesA.length * linesB.length > 4000000) {
+          return [{ type: 'error', value: 'JSON 数据过大，无法进行精细对比' }];
+        }
+
+        const m = linesA.length, n = linesB.length;
+        const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+        
+        for (let i = 1; i <= m; i++) {
+          for (let j = 1; j <= n; j++) {
+            if (linesA[i - 1] === linesB[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+            else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+          }
+        }
+        
+        let i = m, j = n;
+        const result = [];
+        while (i > 0 || j > 0) {
+          if (i > 0 && j > 0 && linesA[i - 1] === linesB[j - 1]) {
+            result.unshift({ type: 'unchanged', value: linesA[i - 1] });
+            i--; j--;
+          } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            result.unshift({ type: 'added', value: linesB[j - 1] });
+            j--;
+          } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+            result.unshift({ type: 'removed', value: linesA[i - 1] });
+            i--;
+          }
+        }
+        return result;
+      } catch (e) {
+        return [{ type: 'error', value: '解析 JSON 失败，请确保两边都是合法的 JSON' }];
+      }
+    };
+
+
+    // --- UI 组件 ---
+
+    const Toast = ({ message, type, onClose }) => {
+      useEffect(() => {
+        const timer = setTimeout(onClose, 2500);
+        return () => clearTimeout(timer);
+      }, [onClose]);
+
+      const bgColors = {
+        success: 'bg-green-100 border-green-400 text-green-800',
+        error: 'bg-red-100 border-red-400 text-red-800',
+        info: 'bg-blue-100 border-blue-400 text-blue-800'
+      };
+      
+      const icons = {
+        success: 'fa-circle-check text-green-600',
+        error: 'fa-circle-exclamation text-red-600',
+        info: 'fa-circle-info text-blue-600'
+      };
+
+      return (
+        <div className={`fixed bottom-6 right-6 flex items-center px-4 py-3 rounded-lg border shadow-lg transition-all z-50 ${bgColors[type] || bgColors.info}`}>
+          <i className={`fas ${icons[type] || icons.info} text-lg mr-2`}></i>
+          <span className="text-sm font-medium">{message}</span>
+        </div>
+      );
+    };
+
+    const Button = ({ onClick, children, variant = 'primary', icon, className = "" }) => {
+      const baseStyle = "flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm";
+      const variants = {
+        primary: "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 border border-blue-600",
+        secondary: "bg-white hover:bg-gray-50 text-gray-700 focus:ring-gray-200 border border-gray-300",
+        danger: "bg-red-50 hover:bg-red-100 text-red-600 focus:ring-red-200 border border-red-200",
+        outline: "bg-transparent hover:bg-gray-100 text-gray-600 focus:ring-gray-200 border border-gray-300",
+      };
+
+      return (
+        <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${className}`}>
+          {icon && <i className={`fas fa-${icon} mr-2`}></i>}
+          {children}
+        </button>
+      );
+    };
+
+    const TextAreaPanel = ({ label, value, onChange, placeholder, readOnly = false, extraAction = null }) => (
+      <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+        <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</span>
+          <div className="flex gap-2">
+            {extraAction}
+          </div>
+        </div>
+        <textarea
+          className="flex-1 w-full bg-white text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar"
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          readOnly={readOnly}
+          spellCheck="false"
+        />
+      </div>
+    );
+
+    // --- 核心功能模块 ---
+
+    const JsonToolkit = ({ showToast }) => {
+      const [input, setInput] = useState('');
+      const [output, setOutput] = useState('');
+
+      const handleAction = (action) => {
+        if (!input.trim()) {
+          showToast("输入不能为空", "error");
+          return;
+        }
+        try {
+          let res = '';
+          switch (action) {
+            case 'format':
+              res = JSON.stringify(JSON.parse(input), null, 4);
+              break;
+            case 'minify':
+              res = JSON.stringify(JSON.parse(input));
+              break;
+            case 'escape':
+              res = JSON.stringify(input).slice(1, -1);
+              break;
+            case 'unescape':
+              let unescaped = input;
+              if (unescaped.startsWith('"') && unescaped.endsWith('"')) {
+                 unescaped = JSON.parse(unescaped);
+              } else {
+                 unescaped = JSON.parse(`"${unescaped}"`);
+              }
+              try { res = JSON.stringify(JSON.parse(unescaped), null, 4); } 
+              catch(e) { res = unescaped; }
+              break;
+            default: break;
+          }
+          setOutput(res);
+          showToast("处理成功", "success");
+        } catch (err) {
+          showToast(`处理失败: ${err.message}`, "error");
+        }
+      };
+
+      return (
+        <div className="flex flex-col h-full space-y-4">
+          <div className="flex flex-wrap gap-3 p-1">
+            <Button onClick={() => handleAction('format')} icon="align-left">格式化 (Beautify)</Button>
+            <Button onClick={() => handleAction('minify')} icon="compress" variant="secondary">压缩 (Minify)</Button>
+            <Button onClick={() => handleAction('escape')} icon="arrow-right-arrow-left" variant="secondary">转义 (Escape)</Button>
+            <Button onClick={() => handleAction('unescape')} icon="layer-group" variant="secondary">去转义 (Unescape)</Button>
+            <div className="flex-1"></div>
+            <Button onClick={() => setInput('{\n  "demo": true,\n  "message": "Hello World"\n}')} variant="outline" icon="code">填入示例</Button>
+            <Button onClick={() => { setInput(''); setOutput(''); }} variant="danger" icon="trash-can">清空</Button>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+            <TextAreaPanel label="输入区 (Input)" value={input} onChange={(e) => setInput(e.target.value)} placeholder="粘贴您的 JSON 字符串到这里..." />
+            <TextAreaPanel 
+              label="输出区 (Output)" 
+              value={output} 
+              readOnly 
+              placeholder="处理后的结果会显示在这里..."
+              extraAction={
+                <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors" title="复制结果">
+                  <i className="fas fa-copy"></i>
+                </button>
+              }
+            />
+          </div>
+        </div>
+      );
+    };
+
+    const JsonDiff = ({ showToast }) => {
+      const [leftJson, setLeftJson] = useState('');
+      const [rightJson, setRightJson] = useState('');
+      const [diffRows, setDiffRows] = useState(null);
+      const [isComparing, setIsComparing] = useState(false);
+
+      const handleCompare = () => {
+        if (!leftJson.trim() || !rightJson.trim()) {
+          showToast("请在两边都输入 JSON 内容", "error");
+          return;
+        }
+        const result = computeDiff(leftJson, rightJson);
+        if (result.length > 0 && result[0].type === 'error') {
+            showToast(result[0].value, "error");
+            return;
+        }
+
+        // 将一维差异数组转换为左右两边对齐的行
+        const rows = [];
+        let i = 0;
+        let leftLineNum = 1;
+        let rightLineNum = 1;
+
+        while (i < result.length) {
+            const current = result[i];
+            if (current.type === 'unchanged') {
+                rows.push({ 
+                    left: current, right: current, 
+                    leftNum: leftLineNum++, rightNum: rightLineNum++ 
+                });
+                i++;
+            } else if (current.type === 'removed') {
+                // 如果紧跟着一个 added，说明是修改，将它们放在同一行对比
+                if (i + 1 < result.length && result[i+1].type === 'added') {
+                    rows.push({ 
+                        left: current, right: result[i+1],
+                        leftNum: leftLineNum++, rightNum: rightLineNum++
+                    });
+                    i += 2;
+                } else {
+                    rows.push({ 
+                        left: current, right: null,
+                        leftNum: leftLineNum++, rightNum: ''
+                    });
+                    i++;
+                }
+            } else if (current.type === 'added') {
+                rows.push({ 
+                    left: null, right: current,
+                    leftNum: '', rightNum: rightLineNum++
+                });
+                i++;
+            }
+        }
+        setDiffRows(rows);
+        setIsComparing(true);
+      };
+
+      return (
+        <div className="flex flex-col h-full space-y-4">
+          <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
+            {!isComparing ? (
+                <>
+                    <Button onClick={handleCompare} icon="code-compare" variant="primary">开始智能对比</Button>
+                    <p className="text-gray-500 text-sm ml-4 flex-1">支持智能格式化后对比，将为您展示直观的左右分栏视图。</p>
+                    <Button onClick={() => { setLeftJson(''); setRightJson(''); setDiffRows(null); }} variant="danger" icon="trash-can">清空</Button>
+                </>
+            ) : (
+                <>
+                    <Button onClick={() => setIsComparing(false)} icon="arrow-left" variant="secondary">返回编辑</Button>
+                    <p className="text-gray-500 text-sm ml-4 flex-1">对比结果：<span className="text-red-500">红色为删除的内容</span>，<span className="text-green-500">绿色为新增的内容</span>。</p>
+                </>
+            )}
+          </div>
+
+          {!isComparing ? (
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[300px]">
+              <TextAreaPanel label="原始 JSON (A)" value={leftJson} onChange={(e) => setLeftJson(e.target.value)} placeholder="输入旧的 JSON..." />
+              <TextAreaPanel label="修改后 JSON (B)" value={rightJson} onChange={(e) => setRightJson(e.target.value)} placeholder="输入新的 JSON..." />
+            </div>
+          ) : (
+            <div className="flex-1 bg-white border border-gray-200 rounded-lg overflow-auto custom-scrollbar shadow-sm min-h-[300px]">
+              <div className="min-w-[800px] w-full flex flex-col font-mono text-sm">
+                  {/* 悬浮表头 */}
+                  <div className="flex sticky top-0 bg-gray-100 border-b border-gray-300 shadow-sm z-10 text-gray-600 font-semibold text-xs uppercase tracking-wider">
+                      <div className="w-1/2 flex px-4 py-2 border-r border-gray-300">原始 JSON (A)</div>
+                      <div className="w-1/2 flex px-4 py-2">修改后 JSON (B)</div>
+                  </div>
+                  
+                  {/* 对齐的差异行 */}
+                  {diffRows.map((row, idx) => (
+                      <div key={idx} className="flex border-b border-gray-100/50 last:border-0 hover:bg-gray-50/80 transition-colors">
+                          {/* 左面板 */}
+                          <div className={`w-1/2 flex border-r border-gray-200 ${row.left?.type === 'removed' ? 'bg-red-50 text-red-800' : 'text-gray-700'}`}>
+                              <div className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right pr-2 py-1 text-xs text-gray-400 select-none">
+                                  {row.leftNum}
+                              </div>
+                              <div className="px-3 py-1 whitespace-pre overflow-hidden text-ellipsis flex-1">
+                                  {row.left ? row.left.value : ' '}
+                              </div>
+                          </div>
+                          {/* 右面板 */}
+                          <div className={`w-1/2 flex ${row.right?.type === 'added' ? 'bg-green-50 text-green-800' : 'text-gray-700'}`}>
+                              <div className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right pr-2 py-1 text-xs text-gray-400 select-none">
+                                  {row.rightNum}
+                              </div>
+                              <div className="px-3 py-1 whitespace-pre overflow-hidden text-ellipsis flex-1">
+                                  {row.right ? row.right.value : ' '}
+                              </div>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const JsonToJava = ({ showToast }) => {
+      const [input, setInput] = useState('');
+      const [output, setOutput] = useState('');
+      const [className, setClassName] = useState('RootEntity');
+
+      const handleGenerate = () => {
+        if (!input.trim()) {
+          showToast("JSON 不能为空", "error");
+          return;
+        }
+        try {
+          const code = generateJavaClass(input, className || "RootEntity");
+          setOutput(code);
+          showToast("实体类生成成功", "success");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      };
+
+      return (
+        <div className="flex flex-col h-full space-y-4">
+          <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+            <span className="text-gray-600 text-sm font-medium">根类名:</span>
+            <input 
+              type="text" 
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              className="bg-gray-50 border border-gray-300 text-gray-800 px-3 py-1.5 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
+              placeholder="RootEntity"
+            />
+            <Button onClick={handleGenerate} icon="coffee" variant="primary">生成 Java Bean</Button>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+            <TextAreaPanel label="JSON 输入区" value={input} onChange={(e) => setInput(e.target.value)} placeholder="输入您的 JSON 接口报文..." />
+            <TextAreaPanel 
+              label="Java 实体类输出区" 
+              value={output} 
+              readOnly 
+              placeholder="生成的 Java class 代码将显示在这里..."
+              extraAction={
+                <button onClick={() => copyToClipboard(output, () => showToast("已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors">
+                  <i className="fas fa-copy"></i>
+                </button>
+              }
+            />
+          </div>
+        </div>
+      );
+    };
+
+    const DevTools = ({ showToast }) => {
+      const [input, setInput] = useState('');
+      const [output, setOutput] = useState('');
+
+      const processText = async (type) => {
+        if (!input) return;
+        try {
+          let res = '';
+          switch (type) {
+            case 'b64encode': res = btoa(unescape(encodeURIComponent(input))); break;
+            case 'b64decode': res = decodeURIComponent(escape(atob(input))); break;
+            case 'urlencode': res = encodeURIComponent(input); break;
+            case 'urldecode': res = decodeURIComponent(input); break;
+            case 'sha256':
+              if (!window.isSecureContext && window.location.protocol !== 'file:') {
+                 throw new Error("SHA-256 需要在 HTTPS 或本地环境下运行");
+              }
+              const msgBuffer = new TextEncoder().encode(input);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              res = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+              break;
+            default: break;
+          }
+          setOutput(res);
+          showToast("执行成功", "success");
+        } catch (e) {
+          showToast(`处理失败: ${e.message || "请检查输入格式"}`, "error");
+        }
+      };
+
+      return (
+        <div className="flex flex-col h-full space-y-4 max-w-5xl mx-auto w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <Button onClick={() => processText('b64encode')} variant="secondary">Base64 编码</Button>
+            <Button onClick={() => processText('b64decode')} variant="secondary">Base64 解码</Button>
+            <Button onClick={() => processText('urlencode')} variant="secondary">URL 编码</Button>
+            <Button onClick={() => processText('urldecode')} variant="secondary">URL 解码</Button>
+            <Button onClick={() => processText('sha256')} variant="primary" icon="shield-halved">SHA-256 哈希</Button>
+          </div>
+
+          <div className="flex flex-col space-y-4 flex-1 min-h-0">
+            <div className="flex-1">
+              <TextAreaPanel label="待处理文本" value={input} onChange={(e) => setInput(e.target.value)} placeholder="在此输入需要编码/解码/哈希的字符串..." />
+            </div>
+            <div className="flex justify-center items-center py-1">
+              <div className="w-8 h-8 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
+                <i className="fas fa-arrow-down text-gray-400"></i>
+              </div>
+            </div>
+            <div className="flex-1">
+              <TextAreaPanel 
+                label="处理结果" 
+                value={output} 
+                readOnly 
+                placeholder="计算结果..." 
+                extraAction={
+                  <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors">
+                    <i className="fas fa-copy"></i>
+                  </button>
+                }
+              />
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // --- 主应用组件 ---
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('json');
+      const [toast, setToast] = useState(null);
+
+      const showToast = (message, type = 'info') => {
+        setToast({ message, type, id: Date.now() });
+      };
+
+      const tabs = [
+        { id: 'json', label: 'JSON 全能工具', icon: 'file-code' },
+        { id: 'diff', label: 'JSON 对比 (Diff)', icon: 'file-signature' },
+        { id: 'java', label: 'JSON 转 Java', icon: 'layer-group' },
+        { id: 'tools', label: '常用开发工具', icon: 'terminal' },
+      ];
+
+      return (
+        <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col md:flex-row font-sans">
+          
+          {/* 侧边导航栏 */}
+          <aside className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm z-10">
+            <div className="h-16 flex items-center px-6 border-b border-gray-200 shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center mr-3 shadow-md shadow-blue-600/20">
+                <i className="fas fa-code text-white"></i>
+              </div>
+              <h1 className="font-bold text-lg text-gray-800 tracking-wide">DevToolkit</h1>
+            </div>
+            
+            <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                      isActive 
+                        ? 'bg-blue-50 text-blue-700' 
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <i className={`fas fa-${tab.icon} w-5 text-center mr-2 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="p-4 border-t border-gray-200 shrink-0 bg-gray-50/50">
+              <div className="flex items-center text-xs text-gray-500">
+                <i className="fas fa-shield-halved mr-2 text-green-500"></i>
+                <span>纯本地浏览器运算，保障数据安全</span>
+              </div>
+            </div>
+          </aside>
+
+          {/* 主内容区域 */}
+          <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-gray-50">
+            
+            {/* 顶部标题栏 */}
+            <header className="h-16 flex items-center px-6 border-b border-gray-200 shrink-0 bg-white shadow-sm z-0">
+              <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+                {tabs.find(t => t.id === activeTab)?.label}
+              </h2>
+            </header>
+
+            {/* 内容主体 */}
+            <div className="flex-1 p-4 md:p-6 overflow-hidden">
+              {activeTab === 'json' && <JsonToolkit showToast={showToast} />}
+              {activeTab === 'diff' && <JsonDiff showToast={showToast} />}
+              {activeTab === 'java' && <JsonToJava showToast={showToast} />}
+              {activeTab === 'tools' && <DevTools showToast={showToast} />}
+            </div>
+          </main>
+
+          {/* 提示组件 */}
+          {toast && (
+            <Toast 
+              key={toast.id} 
+              message={toast.message} 
+              type={toast.type} 
+              onClose={() => setToast(null)} 
+            />
+          )}
+        </div>
+      );
+    }
+
+    // 渲染应用
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
