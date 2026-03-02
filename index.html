@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Klook - DevToolkit</title>
+  <title>Klook DevToolkit</title>
   <link rel="icon" type="image/png" href="./logo.png">
   
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -1182,11 +1182,53 @@
     // --- 主应用组件 ---
 
     function App() {
-      const [activeTab, setActiveTab] = useState('json');
+      // 1. 定义合法的 tabs 数组及初始化逻辑
+      const validTabs = ['json', 'json-diff', 'xml', 'xml-diff', 'sql', 'java', 'git', 'tools'];
+      
+      const getInitialTab = () => {
+        // 去除 '#' 号获取真正的 hash 值
+        const hash = window.location.hash.replace('#', '');
+        return validTabs.includes(hash) ? hash : 'json';
+      };
+
+      const [activeTab, setActiveTab] = useState(getInitialTab);
       const [toast, setToast] = useState(null);
 
       const showToast = (message, type = 'info') => {
         setToast({ message, type, id: Date.now() });
+      };
+
+      // 2. 监听浏览器前进后退导致 Hash 变化的事件
+      useEffect(() => {
+        const handleHashChange = () => {
+          const hash = window.location.hash.replace('#', '');
+          if (validTabs.includes(hash)) {
+            setActiveTab(hash);
+          }
+        };
+
+        window.addEventListener('hashchange', handleHashChange);
+        
+        // 如果当前 URL 没有 hash，为其附上默认值的 hash，方便一开始分享
+        if (!window.location.hash) {
+           window.location.hash = activeTab;
+        }
+
+        return () => window.removeEventListener('hashchange', handleHashChange);
+      }, []);
+
+      // 3. 封装切换 Tab 的方法，使其同时更新 URL Hash
+      const handleTabChange = (tabId) => {
+         setActiveTab(tabId);
+         window.location.hash = tabId;
+      };
+
+      // 4. 一键复制当前带有 Hash 的分享链接
+      const handleShareLink = () => {
+         copyToClipboard(window.location.href, 
+           () => showToast("专属链接已复制，快去分享吧！", "success"), 
+           () => showToast("复制链接失败", "error")
+         );
       };
 
       const tabs = [
@@ -1218,7 +1260,7 @@
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabChange(tab.id)}
                     className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${
                       isActive 
                         ? 'bg-orange-50 text-orange-700' 
@@ -1244,10 +1286,14 @@
           <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-gray-50">
             
             {/* 顶部标题栏 */}
-            <header className="h-16 flex items-center px-6 border-b border-gray-200 shrink-0 bg-white shadow-sm z-0">
+            <header className="h-16 flex items-center justify-between px-6 border-b border-gray-200 shrink-0 bg-white shadow-sm z-0">
               <h2 className="text-xl font-semibold text-gray-800 flex items-center">
                 {tabs.find(t => t.id === activeTab)?.label}
               </h2>
+              {/* 新增了分享按钮 */}
+              <Button onClick={handleShareLink} icon="share-nodes" variant="secondary" className="!py-1.5 !px-3 !text-sm border-gray-200 text-gray-600 hover:text-orange-600">
+                分享此模块
+              </Button>
             </header>
 
             {/* 内容主体 */}
