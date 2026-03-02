@@ -3,22 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>开发者超级工具箱 - DevToolkit</title>
+  <title>Klook - DevToolkit</title>
+  <link rel="icon" type="image/png" href="./logo.png">
   
-  <!-- 引入 React 和 ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- 引入 Babel 用于在浏览器中编译 JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
-  <!-- 引入 Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- 引入 FontAwesome 图标库 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <!-- 引入 Node SQL Parser (用于 SQL 语法校验) -->
   <script src="https://cdn.jsdelivr.net/npm/node-sql-parser@4.8.0/umd/mysql.umd.js"></script>
 
   <style>
@@ -48,7 +44,7 @@
     }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans antialiased selection:bg-blue-200">
+<body class="bg-gray-50 text-gray-800 font-sans antialiased selection:bg-orange-200">
   
   <div id="root"></div>
 
@@ -204,13 +200,13 @@
       const bgColors = {
         success: 'bg-green-100 border-green-400 text-green-800',
         error: 'bg-red-100 border-red-400 text-red-800',
-        info: 'bg-blue-100 border-blue-400 text-blue-800'
+        info: 'bg-orange-100 border-orange-400 text-orange-800'
       };
       
       const icons = {
         success: 'fa-circle-check text-green-600',
         error: 'fa-circle-exclamation text-red-600',
-        info: 'fa-circle-info text-blue-600'
+        info: 'fa-circle-info text-orange-600'
       };
 
       return (
@@ -224,14 +220,14 @@
     const Button = ({ onClick, children, variant = 'primary', icon, className = "", isActive = false }) => {
       const baseStyle = "flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm";
       const variants = {
-        primary: "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 border border-blue-600",
+        primary: "bg-orange-500 hover:bg-orange-600 text-white focus:ring-orange-500 border border-orange-500",
         secondary: "bg-white hover:bg-gray-50 text-gray-700 focus:ring-gray-200 border border-gray-300",
         danger: "bg-red-50 hover:bg-red-100 text-red-600 focus:ring-red-200 border border-red-200",
         outline: "bg-transparent hover:bg-gray-100 text-gray-600 focus:ring-gray-200 border border-gray-300",
       };
 
       const activeStyles = isActive 
-        ? "ring-2 ring-offset-1 ring-blue-500 shadow-md transform scale-[0.98] !border-blue-500" + (variant === 'secondary' ? " bg-blue-50 text-blue-700" : "")
+        ? "ring-2 ring-offset-1 ring-orange-500 shadow-md transform scale-[0.98] !border-orange-500" + (variant === 'secondary' ? " bg-orange-50 text-orange-700" : "")
         : "";
 
       return (
@@ -260,7 +256,7 @@
     const TextAreaPanel = ({ label, value, onChange, placeholder, readOnly = false, extraAction = null }) => (
       <Panel label={label} extraAction={extraAction}>
         <textarea
-          className="absolute inset-0 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar"
+          className="absolute inset-0 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-orange-500 custom-scrollbar"
           value={value}
           onChange={onChange}
           placeholder={placeholder}
@@ -293,14 +289,14 @@
         let valueElement;
         if (value === null) valueElement = <span className="text-gray-400 font-bold">null</span>;
         else if (typeof value === 'string') valueElement = <span className="text-green-600 break-all">"{value}"</span>;
-        else if (typeof value === 'boolean') valueElement = <span className="text-orange-600 font-bold">{value ? 'true' : 'false'}</span>;
-        else valueElement = <span className="text-orange-500">{String(value)}</span>;
+        else if (typeof value === 'boolean') valueElement = <span className="text-pink-600 font-bold">{value ? 'true' : 'false'}</span>;
+        else valueElement = <span className="text-teal-600">{String(value)}</span>;
 
         return (
           <div className="flex items-start font-mono text-sm leading-6 hover:bg-gray-50/50 rounded px-1 transition-colors">
             <div className="w-5 shrink-0"></div>
             <div className="flex-1">
-              {nodeKey !== null && <span className="text-blue-600 mr-1 font-semibold break-all">"{nodeKey}":</span>}
+              {nodeKey !== null && <span className="text-orange-600 mr-1 font-semibold break-all">"{nodeKey}":</span>}
               {valueElement}
               {!isLast && <span className="text-gray-500">,</span>}
             </div>
@@ -320,10 +316,10 @@
             </div>
             <div className="flex-1">
               <span className="cursor-pointer select-none" onClick={toggle}>
-                {nodeKey !== null && <span className="text-blue-600 mr-1 font-semibold break-all">"{nodeKey}":</span>}
+                {nodeKey !== null && <span className="text-orange-600 mr-1 font-semibold break-all">"{nodeKey}":</span>}
                 <span className="text-gray-600">{brackets[0]}</span>
                 {!expanded && !isEmpty && (
-                  <span className="text-gray-500 mx-1 bg-gray-100 px-1.5 py-0.5 rounded text-xs border border-gray-200 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                  <span className="text-gray-500 mx-1 bg-gray-100 px-1.5 py-0.5 rounded text-xs border border-gray-200 hover:bg-orange-50 hover:text-orange-600 transition-colors">
                     ...
                   </span>
                 )}
@@ -340,7 +336,7 @@
           
           {expanded && !isEmpty && (
             <div className="flex group">
-              <div className="w-2.5 shrink-0 border-r border-gray-200 border-dashed group-hover:border-blue-400 cursor-pointer transition-colors" title="点击折叠此段落" onClick={toggle}></div>
+              <div className="w-2.5 shrink-0 border-r border-gray-200 border-dashed group-hover:border-orange-400 cursor-pointer transition-colors" title="点击折叠此段落" onClick={toggle}></div>
               <div className="flex-1 overflow-hidden ml-2.5">
                 {Object.keys(value).map((k, i, arr) => (
                   <JsonNode 
@@ -452,15 +448,15 @@
                 <>
                   {activeAction === 'format' && parsedJson !== null && (
                     <div className="flex border border-gray-200 rounded overflow-hidden mr-2 shadow-sm">
-                      <button onClick={() => setExpandSignal(`expand_${Date.now()}`)} className="px-2 py-1 text-xs bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors border-r border-gray-200" title="展开全部树节点">
+                      <button onClick={() => setExpandSignal(`expand_${Date.now()}`)} className="px-2 py-1 text-xs bg-white text-gray-600 hover:bg-orange-50 hover:text-orange-600 transition-colors border-r border-gray-200" title="展开全部树节点">
                         <i className="fas fa-folder-open mr-1"></i>展开全部
                       </button>
-                      <button onClick={() => setExpandSignal(`collapse_${Date.now()}`)} className="px-2 py-1 text-xs bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="折叠全部树节点">
+                      <button onClick={() => setExpandSignal(`collapse_${Date.now()}`)} className="px-2 py-1 text-xs bg-white text-gray-600 hover:bg-orange-50 hover:text-orange-600 transition-colors" title="折叠全部树节点">
                         <i className="fas fa-folder mr-1"></i>折叠全部
                       </button>
                     </div>
                   )}
-                  <button onClick={() => copyToClipboard(output, () => showToast("复制纯文本成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors" title="复制格式化后的代码">
+                  <button onClick={() => copyToClipboard(output, () => showToast("复制纯文本成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors" title="复制格式化后的代码">
                     <i className="fas fa-copy"></i>
                   </button>
                 </>
@@ -472,7 +468,7 @@
                 </div>
               ) : (
                 <textarea
-                  className="absolute inset-0 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar"
+                  className="absolute inset-0 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar focus:ring-inset focus:ring-2 focus:ring-orange-500"
                   value={output}
                   readOnly
                   placeholder="处理后的结果会显示在这里..."
@@ -505,7 +501,7 @@
           }
           setOutput(res);
         } catch (err) {
-          setOutput(`<!-- 解析失败: ${err.message} -->`);
+          setOutput(``);
         }
       }, [input, activeAction]);
 
@@ -532,7 +528,7 @@
               readOnly 
               placeholder="处理后的结果会显示在这里..."
               extraAction={
-                <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors" title="复制结果">
+                <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors" title="复制结果">
                   <i className="fas fa-copy"></i>
                 </button>
               }
@@ -554,7 +550,6 @@
         }
 
         try {
-          // 检查 node-sql-parser 是否加载成功
           if (typeof window.NodeSQLParser === 'undefined') {
              setResult({ type: 'error', message: 'SQL解析引擎仍在加载中，或加载失败。请检查网络。' });
              return;
@@ -590,7 +585,7 @@
       return (
         <div className="flex flex-col h-full space-y-4">
           <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center text-blue-700 bg-blue-50 px-3 py-1.5 rounded-md text-sm font-semibold">
+            <div className="flex items-center text-orange-700 bg-orange-50 px-3 py-1.5 rounded-md text-sm font-semibold">
               <i className="fas fa-database mr-2"></i> SQL 语法校验引擎
             </div>
             <p className="text-gray-500 text-sm ml-2 flex-1">基于 AST 解析器实时校验，支持 SELECT、CREATE、UPDATE 等标准查询与建表语句。</p>
@@ -781,7 +776,7 @@
                             <span className="font-semibold text-gray-700">发现 {diffStats?.total} 处差异：</span>
                             {diffStats?.added > 0 && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs border border-green-200">新增 {diffStats.added} 行</span>}
                             {diffStats?.removed > 0 && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs border border-red-200">删除 {diffStats.removed} 行</span>}
-                            {diffStats?.modified > 0 && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs border border-blue-200">修改 {diffStats.modified} 行</span>}
+                            {diffStats?.modified > 0 && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs border border-orange-200">修改 {diffStats.modified} 行</span>}
                             
                             <span className="text-gray-400 ml-4 flex items-center text-xs">
                                 <i className="fas fa-hand-pointer mr-1"></i> 提示：可点击最右侧导航条快速跳转
@@ -841,7 +836,7 @@
                       if (!isLeftRemoved && !isRightAdded) return null;
 
                       let bgColor = '';
-                      if (isLeftRemoved && isRightAdded) bgColor = 'bg-blue-400';
+                      if (isLeftRemoved && isRightAdded) bgColor = 'bg-orange-400';
                       else if (isLeftRemoved) bgColor = 'bg-red-400';
                       else if (isRightAdded) bgColor = 'bg-green-400';
 
@@ -894,7 +889,7 @@
               type="text" 
               value={className}
               onChange={(e) => setClassName(e.target.value)}
-              className="bg-gray-50 border border-gray-300 text-gray-800 px-3 py-1.5 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
+              className="bg-gray-50 border border-gray-300 text-gray-800 px-3 py-1.5 rounded-md focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 text-sm"
               placeholder="RootEntity"
             />
             <Button onClick={handleGenerate} icon="coffee" variant="primary">生成 Java Bean</Button>
@@ -908,7 +903,7 @@
               readOnly 
               placeholder="生成的 Java class 代码将显示在这里..."
               extraAction={
-                <button onClick={() => copyToClipboard(output, () => showToast("已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors">
+                <button onClick={() => copyToClipboard(output, () => showToast("已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors">
                   <i className="fas fa-copy"></i>
                 </button>
               }
@@ -925,10 +920,8 @@
         const [moduleName, setModuleName] = useState('');
         const [releaseSeq, setReleaseSeq] = useState('01');
         
-        // 生成一个锁定的 8位随机数字ID，用于占位和回退
         const fallbackRandomId = useMemo(() => Math.floor(Math.random() * 100000000).toString().padStart(8, '0'), []);
 
-        // 获取格式化的当前年月日
         const getYYYYMMDD = () => {
             const d = new Date();
             const year = d.getFullYear();
@@ -937,24 +930,20 @@
             return `${year}${month}${day}`;
         };
 
-        // 核心：基于当前时间推算最近的发布日 (本周二、本周四 或 下周二)，并计算ISO Week
         const getTargetReleaseInfo = () => {
             const now = new Date();
-            const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // 将周日0转为7
+            const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); 
             
             let daysToAdd = 0;
-            let targetDayStr = '02'; // 默认周二
+            let targetDayStr = '02'; 
 
             if (dayOfWeek <= 2) {
-                // 周一、周二 -> 目标本周二
                 daysToAdd = 2 - dayOfWeek;
                 targetDayStr = '02';
             } else if (dayOfWeek <= 4) {
-                // 周三、周四 -> 目标本周四
                 daysToAdd = 4 - dayOfWeek;
                 targetDayStr = '04';
             } else {
-                // 周五及以后 -> 目标下周二
                 daysToAdd = 9 - dayOfWeek;
                 targetDayStr = '02';
             }
@@ -962,10 +951,9 @@
             const targetDate = new Date(now);
             targetDate.setDate(targetDate.getDate() + daysToAdd);
 
-            // 基于目标日期计算 ISO-8601 周数
             const d = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()));
             const dayNum = d.getUTCDay() || 7;
-            d.setUTCDate(d.getUTCDate() + 4 - dayNum); // 设置到本周四
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
             const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
             const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
             const year = d.getUTCFullYear();
@@ -977,19 +965,16 @@
             };
         };
 
-        // 洗脱非规范字符并转换为 kebab-case
         const formatModuleName = (name) => {
             return name.trim().toLowerCase().replace(/[\s_]+/g, '-');
         };
 
-        // 计算最终生成的分支名
         const generatedBranch = useMemo(() => {
             if (branchType === 'release') {
                 const { year, week, dayStr } = getTargetReleaseInfo();
                 return `release/${year}.w${week}.${dayStr}-${releaseSeq}`;
             } else {
                 const finalReqId = reqId.trim() || fallbackRandomId;
-                // 如果用户没有输入模块名，就省略模块部分
                 const finalModule = formatModuleName(moduleName);
                 const modulePart = finalModule ? `-${finalModule}` : '';
                 return `${branchType}/${finalReqId}${modulePart}-${getYYYYMMDD()}`;
@@ -1000,11 +985,11 @@
             <div className="flex flex-col items-center justify-center h-full max-w-4xl mx-auto w-full pt-8">
                 <div className="bg-white rounded-xl border border-gray-200 shadow-md w-full overflow-hidden">
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4">
+                    <div className="bg-gradient-to-r from-orange-500 to-orange-700 px-6 py-4">
                         <h2 className="text-xl font-bold text-white flex items-center">
                             <i className="fas fa-code-branch mr-3"></i> Git 规范分支生成器
                         </h2>
-                        <p className="text-blue-100 text-sm mt-1">
+                        <p className="text-orange-100 text-sm mt-1">
                             基于企业级最佳实践设计，自动为您生成符合标准且格式纯净的分支名称。
                         </p>
                     </div>
@@ -1017,7 +1002,7 @@
                             <label className="text-sm font-semibold text-gray-700">分支类型 (Branch Type)</label>
                             <div className="relative">
                                 <select 
-                                    className="w-full bg-gray-50 border border-gray-300 text-gray-800 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none font-medium"
+                                    className="w-full bg-gray-50 border border-gray-300 text-gray-800 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none font-medium"
                                     value={branchType}
                                     onChange={(e) => setBranchType(e.target.value)}
                                 >
@@ -1043,7 +1028,7 @@
                                     </label>
                                     <input 
                                         type="text" 
-                                        className="bg-gray-50 border border-gray-300 text-gray-800 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+                                        className="bg-gray-50 border border-gray-300 text-gray-800 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 placeholder-gray-400"
                                         placeholder={`例如: JIRA-1234 (空则使用 ${fallbackRandomId})`}
                                         value={reqId}
                                         onChange={(e) => setReqId(e.target.value)}
@@ -1057,7 +1042,7 @@
                                     </label>
                                     <input 
                                         type="text" 
-                                        className="bg-gray-50 border border-gray-300 text-gray-800 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+                                        className="bg-gray-50 border border-gray-300 text-gray-800 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 placeholder-gray-400"
                                         placeholder="例如: User Login API"
                                         value={moduleName}
                                         onChange={(e) => setModuleName(e.target.value)}
@@ -1081,7 +1066,7 @@
                                     <label className="text-sm font-semibold text-gray-700">当日打包序列号 (Sequence)</label>
                                     <div className="relative w-48">
                                         <select 
-                                            className="w-full bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none font-mono"
+                                            className="w-full bg-white border border-gray-300 text-gray-800 px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 appearance-none font-mono"
                                             value={releaseSeq}
                                             onChange={(e) => setReleaseSeq(e.target.value)}
                                         >
@@ -1113,7 +1098,7 @@
                                     onClick={() => copyToClipboard(generatedBranch, () => showToast("分支名已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} 
                                     icon="copy" 
                                     variant="primary"
-                                    className="py-4 px-6 text-base shadow-lg shadow-blue-500/30"
+                                    className="py-4 px-6 text-base shadow-lg shadow-orange-500/30"
                                 >
                                     一键复制
                                 </Button>
@@ -1183,7 +1168,7 @@
                 readOnly 
                 placeholder="计算结果..." 
                 extraAction={
-                  <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-blue-600 transition-colors">
+                  <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors">
                     <i className="fas fa-copy"></i>
                   </button>
                 }
@@ -1220,12 +1205,12 @@
           
           {/* 侧边导航栏 */}
           <aside className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm z-10">
-            <div className="h-16 flex items-center px-6 border-b border-gray-200 shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center mr-3 shadow-md shadow-blue-600/20">
-                <i className="fas fa-code text-white"></i>
-              </div>
-              <h1 className="font-bold text-lg text-gray-800 tracking-wide">DevToolkit</h1>
-            </div>
+           <div className="h-16 flex items-center px-6 border-b border-gray-200 shrink-0">
+              <img src="./logo.png" 
+                alt="Logo" 
+                className="w-8 h-8 mr-3 object-contain rounded-lg shadow-sm" />
+               <h1 className="font-bold text-lg text-gray-800 tracking-wide">Klook tools </h1>
+          </div>
             
             <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
               {tabs.map((tab) => {
@@ -1236,11 +1221,11 @@
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${
                       isActive 
-                        ? 'bg-blue-50 text-blue-700' 
+                        ? 'bg-orange-50 text-orange-700' 
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <i className={`fas fa-${tab.icon} w-5 text-center mr-2 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}></i>
+                    <i className={`fas fa-${tab.icon} w-5 text-center mr-2 ${isActive ? 'text-orange-500' : 'text-gray-400'}`}></i>
                     {tab.label}
                   </button>
                 );
