@@ -1423,20 +1423,20 @@
         </div>
       );
     };
-
-    // --- 更新日志弹窗组件 ---
+    
+// --- 更新日志弹窗组件 (Fetch 远程文件版) ---
     const ChangelogModal = ({ isOpen, onClose }) => {
       const [content, setContent] = useState('加载中...');
       const [isError, setIsError] = useState(false);
-      // 请将这里的链接换成你真实的 GitHub 仓库地址
+      // 这里已经换成了你真实的 GitHub 仓库地址
       const githubUrl = "https://github.com/klook-tech-meihuahu/tool/tree/main"; 
 
       useEffect(() => {
         if (!isOpen) return;
-        setIsError(false);githubgithub
+        setIsError(false);
         setContent('<div class="flex items-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> 正在加载更新日志...</div>');
         
-        // 抓取根目录下的 README.md
+        // 抓取同目录下的 CHANGELOG.md (如果你把日志写在了 README.md 里，请把这里改成 './README.md')
         fetch('./README.md')
           .then(res => {
             if (!res.ok) throw new Error('File not found');
@@ -1454,7 +1454,7 @@
             setContent(`
               <div class="text-center py-6">
                 <i class="fas fa-file-circle-xmark text-4xl text-gray-300 mb-3"></i>
-                <p class="text-gray-600 mb-4">无法直接读取本地更新日志。<br/><span class="text-xs text-gray-400">(提示：如果您直接双击打开了 HTML 文件，受限于浏览器跨域安全策略，无法读取同一目录下的 .md 文件)</span></p>
+                <p class="text-gray-600 mb-4">加载更新日志失败，文件可能不存在。<br/><span class="text-xs text-gray-400">(请确保 CHANGELOG.md 文件已部署到服务器根目录)</span></p>
                 <a href="${githubUrl}" target="_blank" class="inline-flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium rounded-md transition-colors">
                   <i class="fab fa-github mr-2"></i> 前往 GitHub 查看更新日志
                 </a>
@@ -1486,7 +1486,6 @@
         </div>
       );
     };
-
 
     // --- 主应用组件 ---
 
