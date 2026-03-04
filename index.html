@@ -1436,8 +1436,8 @@
         setIsError(false);githubgithub
         setContent('<div class="flex items-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> 正在加载更新日志...</div>');
         
-        // 抓取根目录下的 CHANGELOG.md
-        fetch('./CHANGELOG.md')
+        // 抓取根目录下的 README.md
+        fetch('./README.md')
           .then(res => {
             if (!res.ok) throw new Error('File not found');
             return res.text();
