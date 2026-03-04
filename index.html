@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -227,7 +226,7 @@
       );
     };
 
-    const Button = ({ onClick, children, variant = 'primary', icon, className = "", isActive = false }) => {
+    const Button = ({ onClick, children, variant = 'primary', icon, className = "", isActive = false, title }) => {
       const baseStyle = "flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm";
       const variants = {
         primary: "bg-orange-500 hover:bg-orange-600 text-white focus:ring-orange-500 border border-orange-500",
@@ -241,7 +240,7 @@
         : "";
 
       return (
-        <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${activeStyles} ${className}`}>
+        <button title={title} onClick={onClick} className={`${baseStyle} ${variants[variant]} ${activeStyles} ${className}`}>
           {icon && <i className={`fas fa-${icon} mr-2`}></i>}
           {children}
         </button>
@@ -384,6 +383,9 @@
 
 
     // --- 核心功能模块 ---
+
+    // [原来的 JSON、XML、SQL、Diff 等模块保持不变，直接跳到新增正则和组合处]
+    // ... 为了保持完整性，这里保留完整的代码输出 ...
 
     const JsonToolkit = ({ showToast }) => {
       const [input, setInput] = useState('');
@@ -547,7 +549,6 @@
       );
     };
 
-    // --- SQL 语法校验器 ---
     const SqlValidator = ({ showToast }) => {
       const [input, setInput] = useState('');
       const [result, setResult] = useState({ type: 'idle' });
@@ -922,7 +923,6 @@
       );
     };
 
-    // --- Git 分支生成器 ---
     const GitBranchGenerator = ({ showToast }) => {
         const [branchType, setBranchType] = useState('release');
         const [reqId, setReqId] = useState('');
@@ -941,7 +941,6 @@
             return `${year}${month}${day}`;
         };
 
-      // 👇 替换此方法
         const getTargetReleaseInfo = () => {
             const now = new Date();
             const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); 
@@ -956,23 +955,21 @@
             }
 
             const targetDate = new Date(now);
-            targetDate.setDate(targetDate.getDate() + daysToAdd); // 默认的下一个发版日
+            targetDate.setDate(targetDate.getDate() + daysToAdd); 
 
-            // 应用偏移量计算目标日期 (仅在周二、周四之间跳转)
             let offset = windowOffset;
             while (offset > 0) {
-                if (targetDate.getDay() === 2) targetDate.setDate(targetDate.getDate() + 2); // 周二 -> 周四
-                else targetDate.setDate(targetDate.getDate() + 5); // 周四 -> 下周二
+                if (targetDate.getDay() === 2) targetDate.setDate(targetDate.getDate() + 2); 
+                else targetDate.setDate(targetDate.getDate() + 5); 
                 offset--;
             }
             while (offset < 0) {
-                if (targetDate.getDay() === 4) targetDate.setDate(targetDate.getDate() - 2); // 周四 -> 周二
-                else targetDate.setDate(targetDate.getDate() - 5); // 周二 -> 上周四
+                if (targetDate.getDay() === 4) targetDate.setDate(targetDate.getDate() - 2); 
+                else targetDate.setDate(targetDate.getDate() - 5); 
                 offset++;
             }
 
             const targetDayStr = targetDate.getDay() === 2 ? '02' : '04';
-            // 组装友好的日期展示格式
             const displayDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')} (周${targetDate.getDay() === 2 ? '二' : '四'})`;
 
             const d = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()));
@@ -986,7 +983,7 @@
                 year, 
                 week: weekNo.toString().padStart(2, '0'), 
                 dayStr: targetDayStr,
-                displayDate // 导出供 UI 展示
+                displayDate 
             };
         };
 
@@ -1010,7 +1007,6 @@
         return (
             <div className="flex flex-col items-center justify-center h-full max-w-4xl mx-auto w-full pt-8">
                 <div className="bg-white rounded-xl border border-gray-200 shadow-md w-full overflow-hidden">
-                    {/* Header */}
                     <div className="bg-gradient-to-r from-orange-500 to-orange-700 px-6 py-4">
                         <h2 className="text-xl font-bold text-white flex items-center">
                             <i className="fas fa-code-branch mr-3"></i> Git 规范分支生成器
@@ -1020,10 +1016,7 @@
                         </p>
                     </div>
 
-                    {/* Form Body */}
                     <div className="p-6 md:p-8 space-y-6">
-                        
-                        {/* 第一行：分支类型选择 */}
                         <div className="flex flex-col space-y-2">
                             <label className="text-sm font-semibold text-gray-700">分支类型 (Branch Type)</label>
                             <div className="relative">
@@ -1044,7 +1037,6 @@
                             </div>
                         </div>
 
-                        {/* 动态表单区域 */}
                         {branchType !== 'release' ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                                 <div className="flex flex-col space-y-2">
@@ -1086,7 +1078,6 @@
                                             系统已默认计算下一个有效的发布窗口（周二或周四）。如需提前切出未来分支或回退，可点击下方按钮微调：
                                         </p>
                                         
-                                        {/* 发版日微调控制区 */}
                                         <div className="flex items-center gap-3 bg-white w-max px-2 py-1.5 rounded-md border border-yellow-300 shadow-sm mb-4 select-none">
                                             <button 
                                                 onClick={() => setWindowOffset(prev => prev - 1)}
@@ -1109,7 +1100,6 @@
                                                 <i className="fas fa-plus"></i>
                                             </button>
                                             
-                                            {/* 重置按钮 (仅在有偏移时显示) */}
                                             {windowOffset !== 0 && (
                                                 <button 
                                                     onClick={() => setWindowOffset(0)}
@@ -1143,7 +1133,6 @@
                             </div>
                         )}
 
-                        {/* Result Area */}
                         <div className="pt-6 border-t border-gray-200">
                             <label className="text-sm font-semibold text-gray-700 mb-2 block">最终生成分支名称：</label>
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -1238,11 +1227,9 @@
       );
     };
 
-    // --- 开发手册 / 速查备忘录组件 ---
     const DevReference = ({ showToast }) => {
       const [activeSubject, setActiveSubject] = useState('mysql-types');
 
-      // MySQL 常用语法
       const mysqlSnippets = [
         { title: '创建数据表 (Create Table)', code: 'CREATE TABLE `users` (\n  `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT "主键",\n  `username` VARCHAR(50) NOT NULL COMMENT "用户名",\n  `age` TINYINT(3) UNSIGNED DEFAULT "0" COMMENT "年龄",\n  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT "创建时间",\n  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "更新时间",\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uk_username` (`username`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT="用户表";' },
         { title: '添加列 (Add Column)', code: 'ALTER TABLE `users` ADD COLUMN `status` TINYINT(1) NOT NULL DEFAULT "1" COMMENT "状态:1正常,0禁用" AFTER `username`;' },
@@ -1253,7 +1240,6 @@
         { title: '删除索引 (Drop Index)', code: 'ALTER TABLE `users` DROP INDEX `idx_created_at`;' }
       ];
 
-      // MySQL 数值类型
       const mysqlNumeric = [
         { type: 'TINYINT', size: '1 Bytes', signed: '(-128, 127)', unsigned: '(0, 255)', usage: '小整数值 (常用于状态标识 0/1)' },
         { type: 'SMALLINT', size: '2 Bytes', signed: '(-32 768, 32 767)', unsigned: '(0, 65 535)', usage: '大整数值' },
@@ -1265,7 +1251,6 @@
         { type: 'DECIMAL(M,D)', size: '变长', signed: '依赖于 M 和 D', unsigned: '依赖于 M 和 D', usage: '高精度小数值 (如金额、财务数据必选)' }
       ];
 
-      // MySQL 时间类型
       const mysqlDate = [
         { type: 'DATE', size: '3 Bytes', format: 'YYYY-MM-DD', range: '1000-01-01 到 9999-12-31', usage: '纯日期值' },
         { type: 'TIME', size: '3 Bytes', format: 'HH:MM:SS', range: '-838:59:59 到 838:59:59', usage: '时间值或持续时间' },
@@ -1274,7 +1259,6 @@
         { type: 'TIMESTAMP', size: '4 Bytes', format: 'YYYY-MM-DD hh:mm:ss', range: '1970-01-01 00:00:01 UTC 到 2038-01-19 03:14:07 UTC', usage: '时间戳 (存入时转UTC，取出时转本地时区)' }
       ];
 
-      // MySQL 字符串类型
       const mysqlString = [
         { type: 'CHAR(n)', size: '0-255 bytes', usage: '定长字符串。速度快，但易浪费空间 (如密码 MD5 散列、手机号)。' },
         { type: 'VARCHAR(n)', size: '0-65535 bytes', usage: '变长字符串。按实际长度分配空间，带有 1-2 字节的前缀记录长度。' },
@@ -1286,7 +1270,6 @@
         { type: 'SET', size: '1-8 Bytes', usage: '集合类型。存储多个值，从预定义集合中选择 (如用户兴趣标签)。' }
       ];
 
-      // Redis 数据结构
       const redisAdvancedTypes = [
         { type: 'String (字符串)', internal: 'SDS (简单动态字符串)', complexity: 'O(1)', scene: '缓存对象(JSON格式)、分布式锁(SETNX)、计数器(INCR，如阅读量)、共享 Session。', cmds: 'SET, GET, INCR, SETEX, MGET' },
         { type: 'Hash (哈希字典)', internal: 'ZipList(压缩列表) 或 HashTable', complexity: 'O(1)', scene: '存储结构化对象(如用户信息)，方便局部更新特定字段；购物车设计。', cmds: 'HSET, HGET, HGETALL, HINCRBY' },
@@ -1298,7 +1281,6 @@
         { type: 'Geo (地理空间)', internal: '基于 ZSet', complexity: 'O(log(N))', scene: '附近的人、计算两店直线距离、打车软件附近的车辆。', cmds: 'GEOADD, GEODIST, GEORADIUS' }
       ];
 
-      // 提取通用的表格渲染组件
       const ReferenceTable = ({ headers, data, cols }) => (
         <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -1326,7 +1308,6 @@
 
       return (
         <div className="flex flex-col h-full space-y-4">
-          {/* 内部导航切页 */}
           <div className="flex gap-2 p-1 bg-white rounded-lg border border-gray-200 shadow-sm shrink-0 w-max overflow-x-auto custom-scrollbar">
             <Button isActive={activeSubject === 'mysql-types'} onClick={() => setActiveSubject('mysql-types')} variant="outline" icon="table" className="border-none">MySQL 数据类型</Button>
             <Button isActive={activeSubject === 'mysql-syntax'} onClick={() => setActiveSubject('mysql-syntax')} variant="outline" icon="terminal" className="border-none">MySQL 常用语法</Button>
@@ -1423,12 +1404,210 @@
         </div>
       );
     };
-    
-// --- 更新日志弹窗组件 (Fetch 远程文件版) ---
+
+    // ==========================================
+    // --- 新增：正则表达式在线测试工具组件 ---
+    // ==========================================
+    const RegexTester = ({ showToast }) => {
+      const [regexStr, setRegexStr] = useState('');
+      const [flags, setFlags] = useState('g');
+      const [testText, setTestText] = useState('在此输入需要匹配的文本...\n例如：我的邮箱是 test@example.com，电话是 13812345678。');
+      const [matches, setMatches] = useState([]);
+      const [error, setError] = useState(null);
+
+      // 常用正则表达式集合
+      const commonRegex = [
+        { label: '邮箱', value: '([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})' },
+        { label: '手机号(中国)', value: '1[3-9]\\d{9}' },
+        { label: '中文字符', value: '[\\u4e00-\\u9fa5]+' },
+        { label: '身份证号(18位)', value: '[1-9]\\d{5}(18|19|20)\\d{2}((0[1-9])|(1[0-2]))(([0-2][1-9])|10|20|30|31)\\d{3}[0-9Xx]' },
+        { label: 'URL网址', value: '(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?' },
+        { label: 'IP地址', value: '((2(5[0-5]|[0-4]\\d))|[0-1]?\\d{1,2})(\\.((2(5[0-5]|[0-4]\\d))|[0-1]?\\d{1,2})){3}' }
+      ];
+
+      // 处理正则表达式匹配的副作用
+      useEffect(() => {
+        if (!regexStr) {
+          setMatches([]);
+          setError(null);
+          return;
+        }
+
+        try {
+          const regex = new RegExp(regexStr, flags);
+          setError(null);
+
+          if (!testText) {
+             setMatches([]);
+             return;
+          }
+
+          if (flags.includes('g')) {
+            // 全局匹配，使用 matchAll 获取所有匹配及捕获组
+            const results = [...testText.matchAll(regex)];
+            setMatches(results.map(r => ({ 
+                text: r[0], 
+                index: r.index,
+                groups: r.length > 1 ? Array.from(r) : null // 提取捕获组
+            })));
+          } else {
+            // 非全局匹配，使用 match 获取单个匹配及捕获组
+            const result = testText.match(regex);
+            if (result) {
+              setMatches([{ 
+                  text: result[0], 
+                  index: result.index,
+                  groups: result.length > 1 ? Array.from(result) : null 
+              }]);
+            } else {
+              setMatches([]);
+            }
+          }
+        } catch (e) {
+          setError(e.message);
+          setMatches([]);
+        }
+      }, [regexStr, flags, testText]);
+
+      const toggleFlag = (flag) => {
+        setFlags(prev => prev.includes(flag) ? prev.replace(flag, '') : prev + flag);
+      };
+
+      return (
+        <div className="flex flex-col h-full space-y-4">
+          
+          {/* 常用正则快捷输入 */}
+          <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
+             <span className="text-gray-600 text-sm font-medium mr-1">
+                 <i className="fas fa-bolt text-yellow-500 mr-1"></i> 常用正则:
+             </span>
+             {commonRegex.map(r => (
+                 <Button key={r.label} variant="outline" onClick={() => setRegexStr(r.value)} className="!py-1.5 !px-3 !text-xs !rounded-full">
+                     {r.label}
+                 </Button>
+             ))}
+             <div className="flex-1"></div>
+             <Button onClick={() => { setRegexStr(''); setTestText(''); }} variant="danger" icon="trash-can">清空</Button>
+          </div>
+
+          {/* 正则表达式控制面板 */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
+             <div className="text-gray-400 font-mono text-2xl pl-2 select-none">/</div>
+             <input
+                 type="text"
+                 className="flex-1 bg-gray-50 border border-gray-300 text-gray-800 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-mono text-base"
+                 placeholder="在此输入正则表达式，例如: \d+"
+                 value={regexStr}
+                 onChange={(e) => setRegexStr(e.target.value)}
+                 spellCheck="false"
+             />
+             <div className="text-gray-400 font-mono text-2xl pr-2 select-none">/</div>
+             
+             {/* 修饰符修饰器 (Flags) */}
+             <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-lg border border-gray-200 select-none">
+                 <button 
+                     onClick={() => toggleFlag('g')} 
+                     className={`px-3 py-1.5 rounded text-sm font-mono font-bold transition-colors ${flags.includes('g') ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:bg-gray-200'}`} 
+                     title="全局匹配 (Global match)"
+                 >
+                     g
+                 </button>
+                 <button 
+                     onClick={() => toggleFlag('i')} 
+                     className={`px-3 py-1.5 rounded text-sm font-mono font-bold transition-colors ${flags.includes('i') ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:bg-gray-200'}`} 
+                     title="忽略大小写 (Ignore case)"
+                 >
+                     i
+                 </button>
+                 <button 
+                     onClick={() => toggleFlag('m')} 
+                     className={`px-3 py-1.5 rounded text-sm font-mono font-bold transition-colors ${flags.includes('m') ? 'bg-orange-500 text-white shadow' : 'text-gray-500 hover:bg-gray-200'}`} 
+                     title="多行匹配 (Multiline)"
+                 >
+                     m
+                 </button>
+             </div>
+          </div>
+
+          {/* 内容与结果区 */}
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[300px]">
+             <TextAreaPanel 
+                label="待匹配文本 (Test String)" 
+                value={testText} 
+                onChange={(e) => setTestText(e.target.value)} 
+                placeholder="在此粘贴需要测试的源文本..." 
+             />
+
+             <Panel 
+                label="匹配结果 (Match Result)" 
+                extraAction={
+                   <span className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded border border-gray-200 shadow-inner">
+                       共 {matches.length} 处匹配
+                   </span>
+                }
+             >
+                <div className="absolute inset-0 overflow-auto custom-scrollbar bg-gray-50 p-4">
+                   {error ? (
+                       <div className="flex items-center text-red-700 bg-red-100 border border-red-300 p-3 rounded-md mb-4 shadow-sm animate-fade-in">
+                           <i className="fas fa-circle-xmark text-xl mr-3"></i>
+                           <div>
+                               <h3 className="font-bold text-sm">正则表达式语法错误</h3>
+                               <p className="text-xs text-red-600 mt-0.5">{error}</p>
+                           </div>
+                       </div>
+                   ) : !regexStr ? (
+                       <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
+                           <i className="fas fa-spell-check text-4xl mb-3 opacity-50"></i>
+                           <p>等待输入正则表达式进行测试...</p>
+                       </div>
+                   ) : matches.length > 0 ? (
+                       <div className="space-y-3 animate-fade-in">
+                           {matches.map((m, i) => (
+                               <div key={i} className="bg-white border border-gray-200 rounded-md p-3 flex shadow-sm hover:border-orange-300 transition-colors">
+                                   <div className="w-8 shrink-0 flex items-center justify-center font-bold text-gray-300 border-r border-gray-100 mr-3">
+                                       {i + 1}
+                                   </div>
+                                   <div className="flex-1 min-w-0">
+                                       <div className="text-sm text-green-700 font-mono break-all font-semibold">
+                                           {m.text}
+                                       </div>
+                                       
+                                       {/* 如果存在捕获组(Groups)，则渲染出组列表 */}
+                                       {m.groups && m.groups.length > 1 && (
+                                          <div className="mt-2 pt-2 border-t border-gray-100 flex flex-col gap-1.5">
+                                              {m.groups.map((g, gi) => gi > 0 && g !== undefined && (
+                                                  <div key={gi} className="text-xs flex items-start">
+                                                      <span className="w-16 shrink-0 text-gray-400 font-medium">Group {gi}:</span>
+                                                      <span className="text-gray-600 font-mono break-all bg-gray-50 px-1 rounded">{g}</span>
+                                                  </div>
+                                              ))}
+                                          </div>
+                                       )}
+                                       
+                                       <div className="text-[10px] text-gray-400 mt-2 flex justify-end tracking-wider">
+                                           [INDEX: {m.index}]
+                                       </div>
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                   ) : (
+                       <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
+                           <i className="fas fa-ghost text-4xl mb-3 opacity-50"></i>
+                           <p>当前表达式未能在文本中找到匹配项</p>
+                       </div>
+                   )}
+                </div>
+             </Panel>
+          </div>
+        </div>
+      );
+    };
+
+    // --- 更新日志弹窗组件 (Fetch 远程文件版) ---
     const ChangelogModal = ({ isOpen, onClose }) => {
       const [content, setContent] = useState('加载中...');
       const [isError, setIsError] = useState(false);
-      // 这里已经换成了你真实的 GitHub 仓库地址
       const githubUrl = "https://github.com/klook-tech-meihuahu/tool/tree/main"; 
 
       useEffect(() => {
@@ -1436,7 +1615,6 @@
         setIsError(false);
         setContent('<div class="flex items-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> 正在加载更新日志...</div>');
         
-        // 抓取同目录下的 CHANGELOG.md (如果你把日志写在了 README.md 里，请把这里改成 './README.md')
         fetch('./README.md')
           .then(res => {
             if (!res.ok) throw new Error('File not found');
@@ -1490,25 +1668,22 @@
     // --- 主应用组件 ---
 
     function App() {
-      // 1. 定义合法的 tabs 数组及初始化逻辑 (加上了 'ref')
-      const validTabs = ['json', 'json-diff', 'xml', 'xml-diff', 'sql', 'java', 'git', 'tools', 'ref'];
+      // 1. 将 'regex' 添加到有效路由列表中
+      const validTabs = ['json', 'json-diff', 'xml', 'xml-diff', 'sql', 'java', 'git', 'regex', 'tools', 'ref'];
       
       const getInitialTab = () => {
-        // 去除 '#' 号获取真正的 hash 值
         const hash = window.location.hash.replace('#', '');
         return validTabs.includes(hash) ? hash : 'json';
       };
 
       const [activeTab, setActiveTab] = useState(getInitialTab);
       const [toast, setToast] = useState(null);
-      // 👇 新增这一行：控制更新日志弹窗
       const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
       const showToast = (message, type = 'info') => {
         setToast({ message, type, id: Date.now() });
       };
 
-      // 2. 监听浏览器前进后退导致 Hash 变化的事件
       useEffect(() => {
         const handleHashChange = () => {
           const hash = window.location.hash.replace('#', '');
@@ -1518,8 +1693,6 @@
         };
 
         window.addEventListener('hashchange', handleHashChange);
-        
-        // 如果当前 URL 没有 hash，为其附上默认值的 hash，方便一开始分享
         if (!window.location.hash) {
            window.location.hash = activeTab;
         }
@@ -1527,13 +1700,11 @@
         return () => window.removeEventListener('hashchange', handleHashChange);
       }, []);
 
-      // 3. 封装切换 Tab 的方法，使其同时更新 URL Hash
       const handleTabChange = (tabId) => {
          setActiveTab(tabId);
          window.location.hash = tabId;
       };
 
-      // 4. 一键复制当前带有 Hash 的分享链接
       const handleShareLink = () => {
          copyToClipboard(window.location.href, 
            () => showToast("专属链接已复制，快去分享吧！", "success"), 
@@ -1541,7 +1712,7 @@
          );
       };
 
-      // 增加了 'ref' 备忘录配置
+      // 2. 将新增的正则表达式工具配置到左侧菜单中
       const tabs = [
         { id: 'json', label: 'JSON 全能工具', icon: 'file-code' },
         { id: 'json-diff', label: 'JSON 对比 (Diff)', icon: 'file-signature' },
@@ -1550,6 +1721,7 @@
         { id: 'sql', label: 'SQL 语法校验', icon: 'database' },
         { id: 'java', label: 'JSON 转 Java', icon: 'layer-group' },
         { id: 'git', label: 'Git 分支生成器', icon: 'code-branch' },
+        { id: 'regex', label: '正则表达式测试', icon: 'spell-check' },  // <--- 新增菜单项
         { id: 'tools', label: '常用开发工具', icon: 'terminal' },
         { id: 'ref', label: '开发备忘录 (SQL/Redis)', icon: 'book-bookmark' },
       ];
@@ -1557,7 +1729,6 @@
       return (
         <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col md:flex-row font-sans">
           
-          {/* 侧边导航栏 */}
           <aside className="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col shrink-0 shadow-sm z-10">
            <div className="h-16 flex items-center px-6 border-b border-gray-200 shrink-0">
               <img src="./logo.png" 
@@ -1609,21 +1780,17 @@
             </div>
           </aside>
 
-          {/* 主内容区域 */}
           <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-gray-50">
             
-            {/* 顶部标题栏 */}
             <header className="h-16 flex items-center justify-between px-6 border-b border-gray-200 shrink-0 bg-white shadow-sm z-0">
               <h2 className="text-xl font-semibold text-gray-800 flex items-center">
                 {tabs.find(t => t.id === activeTab)?.label}
               </h2>
-              {/* 新增了分享按钮 */}
               <Button onClick={handleShareLink} icon="share-nodes" variant="secondary" className="!py-1.5 !px-3 !text-sm border-gray-200 text-gray-600 hover:text-orange-600">
                 分享此模块
               </Button>
             </header>
 
-            {/* 内容主体 */}
             <div className="flex-1 p-4 md:p-6 overflow-hidden">
               {activeTab === 'json' && <JsonToolkit showToast={showToast} />}
               {activeTab === 'json-diff' && <JsonDiff showToast={showToast} />}
@@ -1632,13 +1799,15 @@
               {activeTab === 'sql' && <SqlValidator showToast={showToast} />}
               {activeTab === 'java' && <JsonToJava showToast={showToast} />}
               {activeTab === 'git' && <GitBranchGenerator showToast={showToast} />}
+              
+              {/* 3. 在路由渲染区注入我们新写的正则组件 */}
+              {activeTab === 'regex' && <RegexTester showToast={showToast} />}
+              
               {activeTab === 'tools' && <DevTools showToast={showToast} />}
-              {/* 新增备忘录组件渲染 */}
               {activeTab === 'ref' && <DevReference showToast={showToast} />}
             </div>
           </main>
 
-          {/* 提示组件 */}
           {toast && (
             <Toast 
               key={toast.id} 
@@ -1654,7 +1823,6 @@
       );
     }
 
-    // 渲染应用
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
