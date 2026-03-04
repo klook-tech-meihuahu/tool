@@ -238,7 +238,6 @@
       );
     };
 
-    // 基础面板容器
     const Panel = ({ label, extraAction, children }) => (
       <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
         <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
@@ -920,6 +919,8 @@
         const [moduleName, setModuleName] = useState('');
         const [releaseSeq, setReleaseSeq] = useState('01');
         
+        const [windowOffset, setWindowOffset] = useState(0);
+
         const fallbackRandomId = useMemo(() => Math.floor(Math.random() * 100000000).toString().padStart(8, '0'), []);
 
         const getYYYYMMDD = () => {
@@ -930,26 +931,39 @@
             return `${year}${month}${day}`;
         };
 
+      // 👇 替换此方法
         const getTargetReleaseInfo = () => {
             const now = new Date();
             const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); 
             
             let daysToAdd = 0;
-            let targetDayStr = '02'; 
-
             if (dayOfWeek <= 2) {
                 daysToAdd = 2 - dayOfWeek;
-                targetDayStr = '02';
             } else if (dayOfWeek <= 4) {
                 daysToAdd = 4 - dayOfWeek;
-                targetDayStr = '04';
             } else {
                 daysToAdd = 9 - dayOfWeek;
-                targetDayStr = '02';
             }
 
             const targetDate = new Date(now);
-            targetDate.setDate(targetDate.getDate() + daysToAdd);
+            targetDate.setDate(targetDate.getDate() + daysToAdd); // 默认的下一个发版日
+
+            // 应用偏移量计算目标日期 (仅在周二、周四之间跳转)
+            let offset = windowOffset;
+            while (offset > 0) {
+                if (targetDate.getDay() === 2) targetDate.setDate(targetDate.getDate() + 2); // 周二 -> 周四
+                else targetDate.setDate(targetDate.getDate() + 5); // 周四 -> 下周二
+                offset--;
+            }
+            while (offset < 0) {
+                if (targetDate.getDay() === 4) targetDate.setDate(targetDate.getDate() - 2); // 周四 -> 周二
+                else targetDate.setDate(targetDate.getDate() - 5); // 周二 -> 上周四
+                offset++;
+            }
+
+            const targetDayStr = targetDate.getDay() === 2 ? '02' : '04';
+            // 组装友好的日期展示格式
+            const displayDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')} (周${targetDate.getDay() === 2 ? '二' : '四'})`;
 
             const d = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()));
             const dayNum = d.getUTCDay() || 7;
@@ -961,9 +975,11 @@
             return { 
                 year, 
                 week: weekNo.toString().padStart(2, '0'), 
-                dayStr: targetDayStr 
+                dayStr: targetDayStr,
+                displayDate // 导出供 UI 展示
             };
         };
+
 
         const formatModuleName = (name) => {
             return name.trim().toLowerCase().replace(/[\s_]+/g, '-');
@@ -979,7 +995,7 @@
                 const modulePart = finalModule ? `-${finalModule}` : '';
                 return `${branchType}/${finalReqId}${modulePart}-${getYYYYMMDD()}`;
             }
-        }, [branchType, reqId, moduleName, releaseSeq, fallbackRandomId]);
+        }, [branchType, reqId, moduleName, releaseSeq, fallbackRandomId, windowOffset]);
 
         return (
             <div className="flex flex-col items-center justify-center h-full max-w-4xl mx-auto w-full pt-8">
@@ -1051,18 +1067,51 @@
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-5 animate-fade-in">
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-5 animate-fade-in">
                                 <div className="flex items-start">
-                                    <i className="fas fa-calendar-check text-yellow-600 mt-0.5 mr-3"></i>
-                                    <div>
-                                        <h4 className="text-sm font-bold text-yellow-800">智能发版日期推算</h4>
-                                        <p className="text-sm text-yellow-700 mt-1">
-                                            检测到您正在创建 Release 分支。系统已根据发版规范，自动为您推算出下一个合法的发布窗口 
-                                            <strong> (本周二、本周四或下周二) </strong> 的 ISO 周序号。
+                                    <i className="fas fa-calendar-alt text-yellow-600 mt-0.5 mr-3"></i>
+                                    <div className="flex-1">
+                                        <h4 className="text-sm font-bold text-yellow-800">发版日期智能推算与微调</h4>
+                                        <p className="text-sm text-yellow-700 mt-1 mb-4">
+                                            系统已默认计算下一个有效的发布窗口（周二或周四）。如需提前切出未来分支或回退，可点击下方按钮微调：
                                         </p>
+                                        
+                                        {/* 发版日微调控制区 */}
+                                        <div className="flex items-center gap-3 bg-white w-max px-2 py-1.5 rounded-md border border-yellow-300 shadow-sm mb-4 select-none">
+                                            <button 
+                                                onClick={() => setWindowOffset(prev => prev - 1)}
+                                                className="w-8 h-8 flex items-center justify-center rounded hover:bg-yellow-100 text-yellow-700 transition-colors"
+                                                title="上一个发版窗口"
+                                            >
+                                                <i className="fas fa-minus"></i>
+                                            </button>
+                                            <div className="flex flex-col items-center min-w-[150px]">
+                                                <span className="text-sm font-bold text-gray-800 tracking-wide">{getTargetReleaseInfo().displayDate}</span>
+                                                <span className="text-xs font-medium text-gray-500 mt-0.5">
+                                                    {windowOffset === 0 ? '默认当前窗口' : (windowOffset > 0 ? `向后偏移 ${windowOffset} 个窗口` : `向前偏移 ${Math.abs(windowOffset)} 个窗口`)}
+                                                </span>
+                                            </div>
+                                            <button 
+                                                onClick={() => setWindowOffset(prev => prev + 1)}
+                                                className="w-8 h-8 flex items-center justify-center rounded hover:bg-yellow-100 text-yellow-700 transition-colors"
+                                                title="下一个发版窗口"
+                                            >
+                                                <i className="fas fa-plus"></i>
+                                            </button>
+                                            
+                                            {/* 重置按钮 (仅在有偏移时显示) */}
+                                            {windowOffset !== 0 && (
+                                                <button 
+                                                    onClick={() => setWindowOffset(0)}
+                                                    className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline transition-colors"
+                                                >
+                                                    回到默认
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="mt-4 flex flex-col space-y-2">
+                                <div className="mt-2 flex flex-col space-y-2">
                                     <label className="text-sm font-semibold text-gray-700">当日打包序列号 (Sequence)</label>
                                     <div className="relative w-48">
                                         <select 
@@ -1179,11 +1228,197 @@
       );
     };
 
+    // --- 开发手册 / 速查备忘录组件 ---
+    const DevReference = ({ showToast }) => {
+      const [activeSubject, setActiveSubject] = useState('mysql-types');
+
+      // MySQL 常用语法
+      const mysqlSnippets = [
+        { title: '创建数据表 (Create Table)', code: 'CREATE TABLE `users` (\n  `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT "主键",\n  `username` VARCHAR(50) NOT NULL COMMENT "用户名",\n  `age` TINYINT(3) UNSIGNED DEFAULT "0" COMMENT "年龄",\n  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT "创建时间",\n  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "更新时间",\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uk_username` (`username`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT="用户表";' },
+        { title: '添加列 (Add Column)', code: 'ALTER TABLE `users` ADD COLUMN `status` TINYINT(1) NOT NULL DEFAULT "1" COMMENT "状态:1正常,0禁用" AFTER `username`;' },
+        { title: '修改列 (Modify Column)', code: 'ALTER TABLE `users` MODIFY COLUMN `username` VARCHAR(100) NOT NULL COMMENT "修改后的用户名长度";' },
+        { title: '删除列 (Drop Column)', code: 'ALTER TABLE `users` DROP COLUMN `age`;' },
+        { title: '添加普通索引 (Add Index)', code: 'ALTER TABLE `users` ADD INDEX `idx_created_at` (`created_at`);' },
+        { title: '添加唯一/复合索引', code: 'ALTER TABLE `users` ADD UNIQUE INDEX `uk_email` (`email`);\nALTER TABLE `users` ADD INDEX `idx_status_age` (`status`, `age`);' },
+        { title: '删除索引 (Drop Index)', code: 'ALTER TABLE `users` DROP INDEX `idx_created_at`;' }
+      ];
+
+      // MySQL 数值类型
+      const mysqlNumeric = [
+        { type: 'TINYINT', size: '1 Bytes', signed: '(-128, 127)', unsigned: '(0, 255)', usage: '小整数值 (常用于状态标识 0/1)' },
+        { type: 'SMALLINT', size: '2 Bytes', signed: '(-32 768, 32 767)', unsigned: '(0, 65 535)', usage: '大整数值' },
+        { type: 'MEDIUMINT', size: '3 Bytes', signed: '(-8 388 608, 8 388 607)', unsigned: '(0, 16 777 215)', usage: '大整数值' },
+        { type: 'INT / INTEGER', size: '4 Bytes', signed: '(-21亿, 21亿)', unsigned: '(0, 42亿)', usage: '标准大整数值 (常规主键 ID)' },
+        { type: 'BIGINT', size: '8 Bytes', signed: '(-922亿亿, 922亿亿)', unsigned: '(0, 1844亿亿)', usage: '极大整数值 (雪花算法、订单号必选)' },
+        { type: 'FLOAT', size: '4 Bytes', signed: '单精度浮点 (-3.40E+38, 3.40E+38)', unsigned: '-', usage: '单精度浮点数值 (存在精度丢失问题)' },
+        { type: 'DOUBLE', size: '8 Bytes', signed: '双精度浮点 (-1.79E+308, 1.79E+308)', unsigned: '-', usage: '双精度浮点数值 (存在精度丢失问题)' },
+        { type: 'DECIMAL(M,D)', size: '变长', signed: '依赖于 M 和 D', unsigned: '依赖于 M 和 D', usage: '高精度小数值 (如金额、财务数据必选)' }
+      ];
+
+      // MySQL 时间类型
+      const mysqlDate = [
+        { type: 'DATE', size: '3 Bytes', format: 'YYYY-MM-DD', range: '1000-01-01 到 9999-12-31', usage: '纯日期值' },
+        { type: 'TIME', size: '3 Bytes', format: 'HH:MM:SS', range: '-838:59:59 到 838:59:59', usage: '时间值或持续时间' },
+        { type: 'YEAR', size: '1 Byte', format: 'YYYY', range: '1901 到 2155', usage: '年份值' },
+        { type: 'DATETIME', size: '8 Bytes', format: 'YYYY-MM-DD hh:mm:ss', range: '1000-01-01 00:00:00 到 9999-12-31 23:59:59', usage: '混合日期和时间值 (与时区无关)' },
+        { type: 'TIMESTAMP', size: '4 Bytes', format: 'YYYY-MM-DD hh:mm:ss', range: '1970-01-01 00:00:01 UTC 到 2038-01-19 03:14:07 UTC', usage: '时间戳 (存入时转UTC，取出时转本地时区)' }
+      ];
+
+      // MySQL 字符串类型
+      const mysqlString = [
+        { type: 'CHAR(n)', size: '0-255 bytes', usage: '定长字符串。速度快，但易浪费空间 (如密码 MD5 散列、手机号)。' },
+        { type: 'VARCHAR(n)', size: '0-65535 bytes', usage: '变长字符串。按实际长度分配空间，带有 1-2 字节的前缀记录长度。' },
+        { type: 'TINYBLOB / TINYTEXT', size: '0-255 bytes', usage: '短文本或不超过 255 字节的二进制字符串。' },
+        { type: 'BLOB / TEXT', size: '0-65535 bytes', usage: '长文本或二进制大对象。' },
+        { type: 'MEDIUMBLOB / MEDIUMTEXT', size: '0-16 777 215 bytes', usage: '中等长度的文本或二进制数据。' },
+        { type: 'LONGBLOB / LONGTEXT', size: '0-4 294 967 295 bytes', usage: '极大文本数据或二进制数据 (最大 4GB)。' },
+        { type: 'ENUM', size: '1-2 Bytes', usage: '枚举类型。存储单一值，从预定义的集合中选择 (如男女、状态)。' },
+        { type: 'SET', size: '1-8 Bytes', usage: '集合类型。存储多个值，从预定义集合中选择 (如用户兴趣标签)。' }
+      ];
+
+      // Redis 数据结构
+      const redisAdvancedTypes = [
+        { type: 'String (字符串)', internal: 'SDS (简单动态字符串)', complexity: 'O(1)', scene: '缓存对象(JSON格式)、分布式锁(SETNX)、计数器(INCR，如阅读量)、共享 Session。', cmds: 'SET, GET, INCR, SETEX, MGET' },
+        { type: 'Hash (哈希字典)', internal: 'ZipList(压缩列表) 或 HashTable', complexity: 'O(1)', scene: '存储结构化对象(如用户信息)，方便局部更新特定字段；购物车设计。', cmds: 'HSET, HGET, HGETALL, HINCRBY' },
+        { type: 'List (列表)', internal: 'QuickList (快速链表)', complexity: '两端O(1)，中间O(N)', scene: '简单消息队列(LPUSH+BRPOP)、最新动态时间线(朋友圈发帖)、排队系统。', cmds: 'LPUSH, RPUSH, LPOP, BRPOP, LRANGE' },
+        { type: 'Set (集合)', internal: 'IntSet(整数集合) 或 HashTable', complexity: 'O(1)', scene: '社交网络共同好友(SINTER交集)、抽奖系统(SRANDMEMBER)、点赞列表去重。', cmds: 'SADD, SMEMBERS, SINTER, SISMEMBER' },
+        { type: 'ZSet (有序集合)', internal: 'ZipList 或 SkipList(跳表) + HashTable', complexity: 'O(log(N))', scene: '排行榜(积分榜/销量榜)、延时消息队列(按执行时间戳排序)、滑动窗口限流。', cmds: 'ZADD, ZRANGE, ZREVRANGE, ZRANK' },
+        { type: 'Bitmap (位图)', internal: '基于 String 类型的位操作', complexity: 'O(1)', scene: '海量用户签到统计、活跃用户统计、在线状态标识、布隆过滤器。', cmds: 'SETBIT, GETBIT, BITCOUNT, BITOP' },
+        { type: 'HyperLogLog', internal: '基于 String', complexity: 'O(1)', scene: '海量数据的 UV 统计(极其节省内存，最大占12KB，标准误差0.81%)。', cmds: 'PFADD, PFCOUNT, PFMERGE' },
+        { type: 'Geo (地理空间)', internal: '基于 ZSet', complexity: 'O(log(N))', scene: '附近的人、计算两店直线距离、打车软件附近的车辆。', cmds: 'GEOADD, GEODIST, GEORADIUS' }
+      ];
+
+      // 提取通用的表格渲染组件
+      const ReferenceTable = ({ headers, data, cols }) => (
+        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {headers.map((h, i) => (
+                  <th key={i} className={`px-4 py-3 text-left font-semibold text-gray-700 ${cols ? cols[i] : ''}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {data.map((row, idx) => (
+                <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                  {Object.values(row).map((cell, cIdx) => (
+                    <td key={cIdx} className={`px-4 py-3 ${cIdx === 0 ? 'font-semibold text-orange-600 whitespace-nowrap' : 'text-gray-700'}`}>
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+
+      return (
+        <div className="flex flex-col h-full space-y-4">
+          {/* 内部导航切页 */}
+          <div className="flex gap-2 p-1 bg-white rounded-lg border border-gray-200 shadow-sm shrink-0 w-max overflow-x-auto custom-scrollbar">
+            <Button isActive={activeSubject === 'mysql-types'} onClick={() => setActiveSubject('mysql-types')} variant="outline" icon="table" className="border-none">MySQL 数据类型</Button>
+            <Button isActive={activeSubject === 'mysql-syntax'} onClick={() => setActiveSubject('mysql-syntax')} variant="outline" icon="terminal" className="border-none">MySQL 常用语法</Button>
+            <Button isActive={activeSubject === 'redis'} onClick={() => setActiveSubject('redis')} variant="outline" icon="server" className="border-none">Redis 进阶指南</Button>
+          </div>
+
+          <div className="flex-1 overflow-auto custom-scrollbar min-h-0 bg-white border border-gray-200 rounded-lg shadow-sm p-5 space-y-8">
+            
+            {activeSubject === 'mysql-types' && (
+              <div className="space-y-8 animate-fade-in">
+                <section>
+                  <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">数值类型 (Numeric Types)</h3>
+                  <ReferenceTable 
+                    headers={['类型 (Type)', '大小', '范围 (有符号)', '范围 (无符号)', '用途与建议']} 
+                    data={mysqlNumeric} 
+                  />
+                </section>
+                
+                <section>
+                  <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">日期和时间类型 (Date and Time Types)</h3>
+                  <div className="bg-orange-50 text-orange-800 p-3 rounded-md border border-orange-200 text-sm mb-3">
+                    <i className="fas fa-exclamation-triangle mr-2"></i> <strong>避坑指南：</strong> TIMESTAMP 会在 2038-01-19 03:14:07 UTC 溢出（即经典的 2038 问题）。新项目建议直接使用 <strong>DATETIME</strong> 或存 <strong>BIGINT</strong> 毫秒时间戳。
+                  </div>
+                  <ReferenceTable 
+                    headers={['类型 (Type)', '大小', '标准格式', '有效范围', '用途与特性']} 
+                    data={mysqlDate} 
+                  />
+                </section>
+
+                <section>
+                  <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">字符串及其他类型 (String & Other Types)</h3>
+                  <ReferenceTable 
+                    headers={['类型 (Type)', '最大限制', '用途与特性描述']} 
+                    data={mysqlString} 
+                    cols={['w-1/5', 'w-1/5', 'w-3/5']}
+                  />
+                </section>
+              </div>
+            )}
+
+            {activeSubject === 'mysql-syntax' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 animate-fade-in">
+                {mysqlSnippets.map((item, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden flex flex-col group shadow-sm">
+                    <div className="flex justify-between items-center bg-gray-50 px-4 py-2 border-b border-gray-200">
+                      <span className="text-sm font-semibold text-gray-800">{item.title}</span>
+                      <button onClick={() => copyToClipboard(item.code, () => showToast("语法已复制", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors bg-white border border-gray-200 px-2 py-1 rounded text-xs">
+                        <i className="fas fa-copy mr-1"></i>复制
+                      </button>
+                    </div>
+                    <div className="p-4 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-xs overflow-x-auto custom-scrollbar flex-1">
+                      <pre className="whitespace-pre leading-relaxed">{item.code}</pre>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeSubject === 'redis' && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="bg-orange-50 text-orange-800 p-4 rounded-md border border-orange-200 text-sm leading-relaxed shadow-sm">
+                  <p className="mb-2"><i className="fas fa-lightbulb mr-2 text-orange-500"></i> <strong>底层性能密码：</strong> Redis 之所以极快，除了基于内存，还得益于其精心设计的高效数据结构（如用 ZipList 节省内存，用 SkipList 加速范围查找）。</p>
+                  <p><i className="fas fa-clock mr-2 text-orange-500"></i> <strong>复杂度提醒：</strong> 生产环境中要谨慎使用 <code>KEYS *</code> 或时间复杂度为 O(N) 的耗时命令（如超大 List 或 Set 遍历），因为 Redis 处理命令是单线程的，会引发严重阻塞。</p>
+                </div>
+                
+                <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[15%]">数据结构</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[15%]">底层实现</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[10%]">复杂度</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[45%]">经典适用场景</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[15%]">常用命令</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {redisAdvancedTypes.map((rt, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-4 font-bold text-orange-600 whitespace-nowrap">{rt.type}</td>
+                          <td className="px-4 py-4 text-gray-600 font-mono text-xs bg-gray-50/50">{rt.internal}</td>
+                          <td className="px-4 py-4 text-red-600 font-mono text-xs font-semibold">{rt.complexity}</td>
+                          <td className="px-4 py-4 text-gray-800 leading-relaxed">{rt.scene}</td>
+                          <td className="px-4 py-4 font-mono text-xs text-blue-600 bg-blue-50/30">{rt.cmds}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            
+          </div>
+        </div>
+      );
+    };
+
     // --- 主应用组件 ---
 
     function App() {
-      // 1. 定义合法的 tabs 数组及初始化逻辑
-      const validTabs = ['json', 'json-diff', 'xml', 'xml-diff', 'sql', 'java', 'git', 'tools'];
+      // 1. 定义合法的 tabs 数组及初始化逻辑 (加上了 'ref')
+      const validTabs = ['json', 'json-diff', 'xml', 'xml-diff', 'sql', 'java', 'git', 'tools', 'ref'];
       
       const getInitialTab = () => {
         // 去除 '#' 号获取真正的 hash 值
@@ -1231,6 +1466,7 @@
          );
       };
 
+      // 增加了 'ref' 备忘录配置
       const tabs = [
         { id: 'json', label: 'JSON 全能工具', icon: 'file-code' },
         { id: 'json-diff', label: 'JSON 对比 (Diff)', icon: 'file-signature' },
@@ -1240,6 +1476,7 @@
         { id: 'java', label: 'JSON 转 Java', icon: 'layer-group' },
         { id: 'git', label: 'Git 分支生成器', icon: 'code-branch' },
         { id: 'tools', label: '常用开发工具', icon: 'terminal' },
+        { id: 'ref', label: '开发备忘录 (SQL/Redis)', icon: 'book-bookmark' },
       ];
 
       return (
@@ -1306,6 +1543,8 @@
               {activeTab === 'java' && <JsonToJava showToast={showToast} />}
               {activeTab === 'git' && <GitBranchGenerator showToast={showToast} />}
               {activeTab === 'tools' && <DevTools showToast={showToast} />}
+              {/* 新增备忘录组件渲染 */}
+              {activeTab === 'ref' && <DevReference showToast={showToast} />}
             </div>
           </main>
 
