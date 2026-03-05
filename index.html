@@ -1405,6 +1405,134 @@
       );
     };
 
+
+
+    const TextReplacer = ({ showToast }) => {
+      const [input, setInput] = useState('');
+      const [output, setOutput] = useState('');
+      const [findStr, setFindStr] = useState('\\n');
+      const [replaceStr, setReplaceStr] = useState(',');
+      const [useRegex, setUseRegex] = useState(true);
+
+      // 处理替换逻辑
+      useEffect(() => {
+        if (!input) {
+          setOutput('');
+          return;
+        }
+        try {
+          // 允许用户在输入框中输入字面量 \n 和 \t 并将其转换为实际的换行和制表符
+          const actualReplace = replaceStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+          
+          if (useRegex) {
+            if (!findStr) {
+               setOutput(input);
+               return;
+            }
+            // 默认开启全局匹配 (g)
+            const regex = new RegExp(findStr, 'g');
+            setOutput(input.replace(regex, actualReplace));
+          } else {
+            // 普通文本替换
+            const actualFind = findStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+            if (!actualFind) {
+               setOutput(input);
+               return;
+            }
+            setOutput(input.split(actualFind).join(actualReplace));
+          }
+        } catch (e) {
+          setOutput(`// 表达式或替换规则错误: ${e.message}`);
+        }
+      }, [input, findStr, replaceStr, useRegex]);
+
+      const applyPreset = (presetFind, presetReplace, isRegex = true) => {
+        setFindStr(presetFind);
+        setReplaceStr(presetReplace);
+        setUseRegex(isRegex);
+        showToast("已应用预设规则", "success");
+      };
+
+      return (
+        <div className="flex flex-col h-full space-y-4">
+          
+          {/* 常用预设快捷操作 */}
+          <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
+             <span className="text-gray-600 text-sm font-medium mr-1">
+                 <i className="fas fa-bolt text-yellow-500 mr-1"></i> 常用预设:
+             </span>
+             <Button variant="outline" onClick={() => applyPreset('\\n', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="将换行符替换为逗号">换行 转 逗号</Button>
+             <Button variant="outline" onClick={() => applyPreset(',', '\\n')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="将逗号替换为换行符">逗号 转 换行</Button>
+             <Button variant="outline" onClick={() => applyPreset('\\s+', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="将所有空格/制表符/换行替换为逗号">空白 转 逗号</Button>
+             <Button variant="outline" onClick={() => applyPreset('\\s+', '')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="删除所有空格、制表符和换行">去除所有空白</Button>
+             <Button variant="outline" onClick={() => applyPreset("'", '"', false)} className="!py-1.5 !px-3 !text-xs !rounded-full" title="单引号替换为双引号">单引号 转 双引号</Button>
+             <div className="flex-1"></div>
+             <Button onClick={() => { setInput('224050\n45705\n105745\n193123\n57424'); applyPreset('\\n', ','); }} variant="outline" icon="code">填入示例</Button>
+             <Button onClick={() => { setInput(''); setOutput(''); }} variant="danger" icon="trash-can">清空</Button>
+          </div>
+
+          {/* 查找与替换控制面板 */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
+             <div className="flex items-center gap-2 flex-1">
+               <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">查找目标</span>
+               <input
+                 type="text"
+                 className="flex-1 bg-gray-50 border border-gray-300 text-gray-800 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                 value={findStr}
+                 onChange={(e) => setFindStr(e.target.value)}
+                 placeholder="例如: \n 或 \s+"
+                 spellCheck="false"
+               />
+             </div>
+             <div className="flex items-center gap-2 flex-1">
+               <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">替换为</span>
+               <input
+                 type="text"
+                 className="flex-1 bg-gray-50 border border-gray-300 text-gray-800 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                 value={replaceStr}
+                 onChange={(e) => setReplaceStr(e.target.value)}
+                 placeholder="例如: , (支持输入 \n)"
+                 spellCheck="false"
+               />
+             </div>
+             <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer font-medium select-none">
+                  <input 
+                     type="checkbox" 
+                     checked={useRegex} 
+                     onChange={(e) => setUseRegex(e.target.checked)} 
+                     className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500" 
+                  />
+                  使用正则表达式 (全局)
+                </label>
+             </div>
+          </div>
+
+          {/* 内容与结果区 */}
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[300px]">
+             <TextAreaPanel 
+                label="源文本区 (Source Text)" 
+                value={input} 
+                onChange={(e) => setInput(e.target.value)} 
+                placeholder="在此粘贴需要处理的文本..." 
+             />
+             <TextAreaPanel 
+                label="处理结果 (Replaced Result)" 
+                value={output} 
+                readOnly 
+                placeholder="替换后的结果会实时显示在这里..."
+                extraAction={
+                   <button onClick={() => copyToClipboard(output, () => showToast("结果已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors" title="一键复制结果">
+                     <i className="fas fa-copy"></i>
+                   </button>
+                }
+             />
+          </div>
+        </div>
+      );
+    };
+
+
     // ==========================================
     // --- 新增：正则表达式在线测试工具组件 ---
     // ==========================================
@@ -1669,8 +1797,8 @@
 
     function App() {
       // 1. 将 'regex' 添加到有效路由列表中
-      const validTabs = ['json', 'json-diff', 'xml', 'xml-diff', 'sql', 'java', 'git', 'regex', 'tools', 'ref'];
-      
+      const validTabs = ['json', 'json-diff', 'xml', 'xml-diff', 'sql', 'java', 'git', 'regex', 'text-replace', 'tools', 'ref'];
+
       const getInitialTab = () => {
         const hash = window.location.hash.replace('#', '');
         return validTabs.includes(hash) ? hash : 'json';
@@ -1721,7 +1849,8 @@
         { id: 'sql', label: 'SQL 语法校验', icon: 'database' },
         { id: 'java', label: 'JSON 转 Java', icon: 'layer-group' },
         { id: 'git', label: 'Git 分支生成器', icon: 'code-branch' },
-        { id: 'regex', label: '正则表达式测试', icon: 'spell-check' },  // <--- 新增菜单项
+        { id: 'regex', label: '正则表达式测试', icon: 'spell-check' },
+        { id: 'text-replace', label: '文本批量替换', icon: 'wand-magic-sparkles' }, // <--- 新增这行
         { id: 'tools', label: '常用开发工具', icon: 'terminal' },
         { id: 'ref', label: '开发备忘录 (SQL/Redis)', icon: 'book-bookmark' },
       ];
@@ -1802,7 +1931,7 @@
               
               {/* 3. 在路由渲染区注入我们新写的正则组件 */}
               {activeTab === 'regex' && <RegexTester showToast={showToast} />}
-              
+              {activeTab === 'text-replace' && <TextReplacer showToast={showToast} />}
               {activeTab === 'tools' && <DevTools showToast={showToast} />}
               {activeTab === 'ref' && <DevReference showToast={showToast} />}
             </div>
