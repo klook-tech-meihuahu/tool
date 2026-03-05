@@ -1,4 +1,5 @@
 
+
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -17,6 +18,12 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <script src="https://cdn.jsdelivr.net/npm/node-sql-parser@4.8.0/umd/mysql.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prop-types@15.7.2/prop-types.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/state-local@1.0.6/lib/umd/state-local.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@monaco-editor/loader@1.0.1/lib/umd/monaco-loader.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@monaco-editor/react@4.0.11/lib/umd/monaco-react.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.9/beautify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.9/beautify-html.min.js"></script>
 
   <style>
     /* 自定义亮色系滚动条 */
@@ -1353,430 +1360,723 @@
   );
 };
     
-    const DevReference = ({ showToast }) => {
-      const [activeSubject, setActiveSubject] = useState('mysql-types');
+  
 
-      const mysqlSnippets = [
-        { title: '创建数据表 (Create Table)', code: 'CREATE TABLE `users` (\n  `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT "主键",\n  `username` VARCHAR(50) NOT NULL COMMENT "用户名",\n  `age` TINYINT(3) UNSIGNED DEFAULT "0" COMMENT "年龄",\n  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT "创建时间",\n  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT "更新时间",\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uk_username` (`username`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT="用户表";' },
-        { title: '添加列 (Add Column)', code: 'ALTER TABLE `users` ADD COLUMN `status` TINYINT(1) NOT NULL DEFAULT "1" COMMENT "状态:1正常,0禁用" AFTER `username`;' },
-        { title: '修改列 (Modify Column)', code: 'ALTER TABLE `users` MODIFY COLUMN `username` VARCHAR(100) NOT NULL COMMENT "修改后的用户名长度";' },
-        { title: '删除列 (Drop Column)', code: 'ALTER TABLE `users` DROP COLUMN `age`;' },
-        { title: '添加普通索引 (Add Index)', code: 'ALTER TABLE `users` ADD INDEX `idx_created_at` (`created_at`);' },
-        { title: '添加唯一/复合索引', code: 'ALTER TABLE `users` ADD UNIQUE INDEX `uk_email` (`email`);\nALTER TABLE `users` ADD INDEX `idx_status_age` (`status`, `age`);' },
-        { title: '删除索引 (Drop Index)', code: 'ALTER TABLE `users` DROP INDEX `idx_created_at`;' }
-      ];
+const DevReference = ({ showToast }) => {
+  // 一级分类：'mysql' | 'redis'
+  const [mainTab, setMainTab] = useState('mysql');
+  // 二级分类
+  const [mysqlTab, setMysqlTab] = useState('types');
+  const [redisTab, setRedisTab] = useState('data-types');
+  
+  // SQL 分析器状态
+  const [sqlInput, setSqlInput] = useState('SELECT * FROM users WHERE age > 18;');
+  const [sqlDiagnosis, setSqlDiagnosis] = useState(null);
 
-      const mysqlNumeric = [
-        { type: 'TINYINT', size: '1 Bytes', signed: '(-128, 127)', unsigned: '(0, 255)', usage: '小整数值 (常用于状态标识 0/1)' },
-        { type: 'SMALLINT', size: '2 Bytes', signed: '(-32 768, 32 767)', unsigned: '(0, 65 535)', usage: '大整数值' },
-        { type: 'MEDIUMINT', size: '3 Bytes', signed: '(-8 388 608, 8 388 607)', unsigned: '(0, 16 777 215)', usage: '大整数值' },
-        { type: 'INT / INTEGER', size: '4 Bytes', signed: '(-21亿, 21亿)', unsigned: '(0, 42亿)', usage: '标准大整数值 (常规主键 ID)' },
-        { type: 'BIGINT', size: '8 Bytes', signed: '(-922亿亿, 922亿亿)', unsigned: '(0, 1844亿亿)', usage: '极大整数值 (雪花算法、订单号必选)' },
-        { type: 'FLOAT', size: '4 Bytes', signed: '单精度浮点 (-3.40E+38, 3.40E+38)', unsigned: '-', usage: '单精度浮点数值 (存在精度丢失问题)' },
-        { type: 'DOUBLE', size: '8 Bytes', signed: '双精度浮点 (-1.79E+308, 1.79E+308)', unsigned: '-', usage: '双精度浮点数值 (存在精度丢失问题)' },
-        { type: 'DECIMAL(M,D)', size: '变长', signed: '依赖于 M 和 D', unsigned: '依赖于 M 和 D', usage: '高精度小数值 (如金额、财务数据必选)' }
-      ];
+  // ====================== 数据区：MySQL ======================
+  // 1. MySQL 类型 (精简合并版，保留核心)
+  const mysqlTypes = [
+    { cat: '数值', type: 'TINYINT', range: '1 Byte (-128~127)', usage: '状态标识 0/1' },
+    { cat: '数值', type: 'INT', range: '4 Bytes', usage: '常规主键 ID' },
+    { cat: '数值', type: 'BIGINT', range: '8 Bytes', usage: '雪花算法、订单号必选' },
+    { cat: '数值', type: 'DECIMAL(M,D)', range: '变长', usage: '高精度小数 (金额、财务数据)' },
+    { cat: '时间', type: 'DATETIME', range: '8 Bytes', usage: '混合日期时间 (与时区无关，推荐)' },
+    { cat: '时间', type: 'TIMESTAMP', range: '4 Bytes', usage: '2038年溢出风险，存入转UTC，取出转本地' },
+    { cat: '字符', type: 'VARCHAR(n)', range: '变长(按需分配)', usage: '变长字符串，带1-2字节前缀' },
+    { cat: '字符', type: 'TEXT', range: '0-65535 bytes', usage: '长文本 (不建议加索引)' }
+  ];
 
-      const mysqlDate = [
-        { type: 'DATE', size: '3 Bytes', format: 'YYYY-MM-DD', range: '1000-01-01 到 9999-12-31', usage: '纯日期值' },
-        { type: 'TIME', size: '3 Bytes', format: 'HH:MM:SS', range: '-838:59:59 到 838:59:59', usage: '时间值或持续时间' },
-        { type: 'YEAR', size: '1 Byte', format: 'YYYY', range: '1901 到 2155', usage: '年份值' },
-        { type: 'DATETIME', size: '8 Bytes', format: 'YYYY-MM-DD hh:mm:ss', range: '1000-01-01 00:00:00 到 9999-12-31 23:59:59', usage: '混合日期和时间值 (与时区无关)' },
-        { type: 'TIMESTAMP', size: '4 Bytes', format: 'YYYY-MM-DD hh:mm:ss', range: '1970-01-01 00:00:01 UTC 到 2038-01-19 03:14:07 UTC', usage: '时间戳 (存入时转UTC，取出时转本地时区)' }
-      ];
+  // 2. MySQL 函数
+  const mysqlFunctions = [
+    { cat: '时间', func: "DATE_FORMAT(now(), '%Y-%m-%d')", desc: "日期格式化" },
+    { cat: '时间', func: "UNIX_TIMESTAMP() / FROM_UNIXTIME(ts)", desc: "时间戳转换" },
+    { cat: '判空', func: "IFNULL(col, default_val)", desc: "为空则返回默认值" },
+    { cat: '判空', func: "COALESCE(val1, val2, ...)", desc: "返回第一个非NULL值" },
+    { cat: '字符', func: "CONCAT_WS(',', 'A', NULL, 'B')", desc: "带分隔符拼接(自动忽略NULL)" },
+    { cat: '字符', func: "FIND_IN_SET('b', 'a,b,c')", desc: "查询元素是否在逗号集合中" },
+  ];
 
-      const mysqlString = [
-        { type: 'CHAR(n)', size: '0-255 bytes', usage: '定长字符串。速度快，但易浪费空间 (如密码 MD5 散列、手机号)。' },
-        { type: 'VARCHAR(n)', size: '0-65535 bytes', usage: '变长字符串。按实际长度分配空间，带有 1-2 字节的前缀记录长度。' },
-        { type: 'TINYBLOB / TINYTEXT', size: '0-255 bytes', usage: '短文本或不超过 255 字节的二进制字符串。' },
-        { type: 'BLOB / TEXT', size: '0-65535 bytes', usage: '长文本或二进制大对象。' },
-        { type: 'MEDIUMBLOB / MEDIUMTEXT', size: '0-16 777 215 bytes', usage: '中等长度的文本或二进制数据。' },
-        { type: 'LONGBLOB / LONGTEXT', size: '0-4 294 967 295 bytes', usage: '极大文本数据或二进制数据 (最大 4GB)。' },
-        { type: 'ENUM', size: '1-2 Bytes', usage: '枚举类型。存储单一值，从预定义的集合中选择 (如男女、状态)。' },
-        { type: 'SET', size: '1-8 Bytes', usage: '集合类型。存储多个值，从预定义集合中选择 (如用户兴趣标签)。' }
-      ];
+  // 3. MySQL 语法速查
+  const mysqlSnippets = [
+    { title: '添加列 (Add Column)', code: 'ALTER TABLE `users` ADD COLUMN `status` TINYINT(1) NOT NULL DEFAULT "1" COMMENT "状态" AFTER `username`;' },
+    { title: '添加复合索引 (Add Index)', code: 'ALTER TABLE `users` ADD INDEX `idx_status_age` (`status`, `age`);' },
+    { title: '插入或更新 (UPSERT)', code: 'INSERT INTO `users` (`id`, `name`) VALUES (1, "A") \nON DUPLICATE KEY UPDATE `name`="A";' },
+  ];
 
-      const redisAdvancedTypes = [
-        { type: 'String (字符串)', internal: 'SDS (简单动态字符串)', complexity: 'O(1)', scene: '缓存对象(JSON格式)、分布式锁(SETNX)、计数器(INCR，如阅读量)、共享 Session。', cmds: 'SET, GET, INCR, SETEX, MGET' },
-        { type: 'Hash (哈希字典)', internal: 'ZipList(压缩列表) 或 HashTable', complexity: 'O(1)', scene: '存储结构化对象(如用户信息)，方便局部更新特定字段；购物车设计。', cmds: 'HSET, HGET, HGETALL, HINCRBY' },
-        { type: 'List (列表)', internal: 'QuickList (快速链表)', complexity: '两端O(1)，中间O(N)', scene: '简单消息队列(LPUSH+BRPOP)、最新动态时间线(朋友圈发帖)、排队系统。', cmds: 'LPUSH, RPUSH, LPOP, BRPOP, LRANGE' },
-        { type: 'Set (集合)', internal: 'IntSet(整数集合) 或 HashTable', complexity: 'O(1)', scene: '社交网络共同好友(SINTER交集)、抽奖系统(SRANDMEMBER)、点赞列表去重。', cmds: 'SADD, SMEMBERS, SINTER, SISMEMBER' },
-        { type: 'ZSet (有序集合)', internal: 'ZipList 或 SkipList(跳表) + HashTable', complexity: 'O(log(N))', scene: '排行榜(积分榜/销量榜)、延时消息队列(按执行时间戳排序)、滑动窗口限流。', cmds: 'ZADD, ZRANGE, ZREVRANGE, ZRANK' },
-        { type: 'Bitmap (位图)', internal: '基于 String 类型的位操作', complexity: 'O(1)', scene: '海量用户签到统计、活跃用户统计、在线状态标识、布隆过滤器。', cmds: 'SETBIT, GETBIT, BITCOUNT, BITOP' },
-        { type: 'HyperLogLog', internal: '基于 String', complexity: 'O(1)', scene: '海量数据的 UV 统计(极其节省内存，最大占12KB，标准误差0.81%)。', cmds: 'PFADD, PFCOUNT, PFMERGE' },
-        { type: 'Geo (地理空间)', internal: '基于 ZSet', complexity: 'O(log(N))', scene: '附近的人、计算两店直线距离、打车软件附近的车辆。', cmds: 'GEOADD, GEODIST, GEORADIUS' }
-      ];
+  // 4. MySQL Explain 分析 (新增高频硬核知识)
+  const mysqlExplain = [
+    { type: 'system', level: '极速', color: 'text-blue-600 bg-blue-50', desc: '表只有一行记录（等于系统表），是 const 类型的特例。' },
+    { type: 'const', level: '极速', color: 'text-blue-600 bg-blue-50', desc: '通过主键或唯一索引扫描，只匹配一行记录，非常快。' },
+    { type: 'eq_ref', level: '快', color: 'text-green-600 bg-green-50', desc: '多表连接时，使用主键或唯一索引作为关联条件。' },
+    { type: 'ref', level: '良好', color: 'text-green-600 bg-green-50', desc: '使用了普通非唯一索引，可能会找到多个符合条件的行。' },
+    { type: 'range', level: '中等', color: 'text-orange-500 bg-orange-50', desc: '使用索引进行范围查找 (BETWEEN, <, >, IN)。' },
+    { type: 'index', level: '慢', color: 'text-red-500 bg-red-50', desc: '全索引树扫描，比 ALL 快一点，因为索引文件通常比数据文件小。' },
+    { type: 'ALL', level: '极差', color: 'text-red-600 bg-red-100 font-bold', desc: '全表扫描，性能最差，必须优化（加索引）！' },
+  ];
 
-      const ReferenceTable = ({ headers, data, cols }) => (
-        <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                {headers.map((h, i) => (
-                  <th key={i} className={`px-4 py-3 text-left font-semibold text-gray-700 ${cols ? cols[i] : ''}`}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {data.map((row, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                  {Object.values(row).map((cell, cIdx) => (
-                    <td key={cIdx} className={`px-4 py-3 ${cIdx === 0 ? 'font-semibold text-orange-600 whitespace-nowrap' : 'text-gray-700'}`}>
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
+  // ====================== 数据区：Redis ======================
+  // 1. Redis 数据结构 (保留)
+  const redisTypes = [
+    { type: 'String', scene: '缓存对象(JSON)、分布式锁(SETNX)、计数器(INCR)。' },
+    { type: 'Hash', scene: '结构化对象(用户信息)、购物车，局部更新友好。' },
+    { type: 'List', scene: '简单消息队列(LPUSH+BRPOP)、最新动态时间线。' },
+    { type: 'Set', scene: '社交网络共同好友(SINTER交集)、抽奖系统去重。' },
+    { type: 'ZSet', scene: '排行榜(积分榜/销量榜)、延时消息队列(按时间戳排序)。' },
+    { type: 'Bitmap', scene: '海量用户签到统计、布隆过滤器。' },
+  ];
 
-      return (
-        <div className="flex flex-col h-full space-y-4">
-          <div className="flex gap-2 p-1 bg-white rounded-lg border border-gray-200 shadow-sm shrink-0 w-max overflow-x-auto custom-scrollbar">
-            <Button isActive={activeSubject === 'mysql-types'} onClick={() => setActiveSubject('mysql-types')} variant="outline" icon="table" className="border-none">MySQL 数据类型</Button>
-            <Button isActive={activeSubject === 'mysql-syntax'} onClick={() => setActiveSubject('mysql-syntax')} variant="outline" icon="terminal" className="border-none">MySQL 常用语法</Button>
-            <Button isActive={activeSubject === 'redis'} onClick={() => setActiveSubject('redis')} variant="outline" icon="server" className="border-none">Redis 进阶指南</Button>
-          </div>
+  // 2. Redis 淘汰策略 (新增)
+  const redisEviction = [
+    { name: 'noeviction', desc: '默认策略。内存满时拒绝新写入并报错，保证数据不丢失。' },
+    { name: 'allkeys-lru', desc: '淘汰整个键值空间中最久未使用的键（最常用于纯缓存场景）。' },
+    { name: 'volatile-lru', desc: '淘汰设置了过期时间的键中最久未使用的键。' },
+    { name: 'allkeys-random', desc: '在所有键中随机淘汰。' },
+    { name: 'volatile-ttl', desc: '淘汰设置了过期时间的键中，剩余寿命(TTL)最短的键。' },
+    { name: 'allkeys-lfu / volatile-lfu', desc: 'Redis 4.0+ 新增。基于使用频率淘汰，访问频率越低越先被淘汰。' },
+  ];
 
-          <div className="flex-1 overflow-auto custom-scrollbar min-h-0 bg-white border border-gray-200 rounded-lg shadow-sm p-5 space-y-8">
+  // 3. Redis 持久化 (新增)
+  const redisPersistence = [
+    { feature: '全称', rdb: 'Redis DataBase (内存快照)', aof: 'Append Only File (追加日志)' },
+    { feature: '文件体积', rdb: '小 (紧凑的二进制文件)', aof: '大 (记录每条写命令)' },
+    { feature: '恢复速度', rdb: '极快 (直接加载入内存)', aof: '慢 (需要重放所有命令)' },
+    { feature: '数据安全性', rdb: '易丢数据 (两次快照之间的数据)', aof: '高 (默认每秒 fsync，最多丢1秒)' },
+    { feature: '性能影响', rdb: 'BGSAVE fork子进程耗费CPU/内存', aof: '文件重写(Rewrite)时耗费IO' },
+  ];
+
+  // ====================== SQL 诊断逻辑 ======================
+  const analyzeSql = () => {
+    if (!window.NodeSQLParser) {
+      showToast('SQL 解析器未就绪', 'error');
+      return;
+    }
+    try {
+      const parser = new window.NodeSQLParser.Parser();
+      const ast = parser.astify(sqlInput);
+      const warnings = [];
+      const info = [];
+
+      // 将 AST 转为数组统一处理（处理多条 SQL）
+      const astArray = Array.isArray(ast) ? ast : [ast];
+
+      astArray.forEach((stmt, idx) => {
+        const prefix = astArray.length > 1 ? `[语句 ${idx + 1}] ` : '';
+        if (stmt.type === 'select') {
+          // 检查 SELECT *
+          const hasStar = stmt.columns === '*' || (Array.isArray(stmt.columns) && stmt.columns.some(c => c.expr?.type === 'column_ref' && c.expr?.column === '*'));
+          if (hasStar) warnings.push(`${prefix}使用了 \`SELECT *\`。建议仅查询所需字段，减少网络与内存开销，并增加覆盖索引命中率。`);
+          
+          // 检查 WHERE
+          if (!stmt.where) warnings.push(`${prefix}缺少 \`WHERE\` 条件，可能会导致全表扫描。`);
+          
+          // 检查 LIMIT
+          if (!stmt.limit) info.push(`${prefix}未设置 \`LIMIT\`，如果表数据量大，建议分页或限制返回行数。`);
+        } else if (stmt.type === 'update' || stmt.type === 'delete') {
+           if (!stmt.where) warnings.push(`⚠️ 危险: ${prefix}${stmt.type.toUpperCase()} 语句缺少 \`WHERE\` 条件，将影响全表！`);
+        }
+      });
+
+      setSqlDiagnosis({
+        success: true,
+        formatted: parser.sqlify(ast), // 格式化 SQL
+        warnings,
+        info
+      });
+    } catch (err) {
+      setSqlDiagnosis({
+        success: false,
+        error: `SQL 语法错误: ${err.message}`
+      });
+    }
+  };
+
+  // ====================== 通用 UI 组件 ======================
+  const TabNav = ({ tabs, activeTab, setTab, isMain = false }) => (
+    <div className={`flex gap-2 p-1 bg-gray-50/50 rounded-lg overflow-x-auto custom-scrollbar shrink-0 ${isMain ? 'mb-4 border border-gray-200' : ''}`}>
+      {tabs.map(t => (
+        <button
+          key={t.id}
+          onClick={() => setTab(t.id)}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+            activeTab === t.id 
+              ? `${isMain ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-orange-600 shadow-sm border border-gray-200'}` 
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          }`}
+        >
+          {t.icon && <i className={`fas ${t.icon} mr-2`}></i>}
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6 overflow-hidden">
+      
+      {/* 一级导航 */}
+      <TabNav 
+        isMain={true}
+        activeTab={mainTab} 
+        setTab={setMainTab}
+        tabs={[
+          { id: 'mysql', label: 'MySQL 数据库', icon: 'fa-database' },
+          { id: 'redis', label: 'Redis 缓存', icon: 'fa-server' }
+        ]} 
+      />
+
+      {/* 二级内容区 */}
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+        
+        {/* ================= MySQL 模块 ================= */}
+        {mainTab === 'mysql' && (
+          <>
+            <TabNav 
+              activeTab={mysqlTab} 
+              setTab={setMysqlTab}
+              tabs={[
+                { id: 'types', label: '数据类型 & 函数' },
+                { id: 'explain', label: '性能调优 (Explain)' },
+                { id: 'diagnosis', label: 'SQL 诊断室', icon: 'fa-stethoscope' }
+              ]} 
+            />
             
-            {activeSubject === 'mysql-types' && (
-              <div className="space-y-8 animate-fade-in">
-                <section>
-                  <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">数值类型 (Numeric Types)</h3>
-                  <ReferenceTable 
-                    headers={['类型 (Type)', '大小', '范围 (有符号)', '范围 (无符号)', '用途与建议']} 
-                    data={mysqlNumeric} 
-                  />
-                </section>
-                
-                <section>
-                  <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">日期和时间类型 (Date and Time Types)</h3>
-                  <div className="bg-orange-50 text-orange-800 p-3 rounded-md border border-orange-200 text-sm mb-3">
-                    <i className="fas fa-exclamation-triangle mr-2"></i> <strong>避坑指南：</strong> TIMESTAMP 会在 2038-01-19 03:14:07 UTC 溢出（即经典的 2038 问题）。新项目建议直接使用 <strong>DATETIME</strong> 或存 <strong>BIGINT</strong> 毫秒时间戳。
+            <div className="flex-1 overflow-auto custom-scrollbar mt-4 pr-2 space-y-6 animate-fade-in">
+              
+              {mysqlTab === 'types' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* 类型速查表 */}
+                  <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 font-bold text-gray-700 text-sm">常用数据类型</div>
+                    <table className="min-w-full text-sm divide-y divide-gray-200">
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {mysqlTypes.map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 whitespace-nowrap text-orange-600 font-mono text-xs">{row.type}</td>
+                            <td className="px-3 py-2 text-gray-500 text-xs">{row.range}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.usage}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <ReferenceTable 
-                    headers={['类型 (Type)', '大小', '标准格式', '有效范围', '用途与特性']} 
-                    data={mysqlDate} 
-                  />
-                </section>
 
-                <section>
-                  <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">字符串及其他类型 (String & Other Types)</h3>
-                  <ReferenceTable 
-                    headers={['类型 (Type)', '最大限制', '用途与特性描述']} 
-                    data={mysqlString} 
-                    cols={['w-1/5', 'w-1/5', 'w-3/5']}
-                  />
-                </section>
-              </div>
-            )}
+                  {/* 函数速查表 */}
+                  <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 font-bold text-gray-700 text-sm">高频函数</div>
+                    <table className="min-w-full text-sm divide-y divide-gray-200">
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {mysqlFunctions.map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 font-mono text-xs text-blue-600 bg-blue-50/50 break-all">{row.func}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.desc}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-            {activeSubject === 'mysql-syntax' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 animate-fade-in">
-                {mysqlSnippets.map((item, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden flex flex-col group shadow-sm">
-                    <div className="flex justify-between items-center bg-gray-50 px-4 py-2 border-b border-gray-200">
-                      <span className="text-sm font-semibold text-gray-800">{item.title}</span>
-                      <button onClick={() => copyToClipboard(item.code, () => showToast("语法已复制", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors bg-white border border-gray-200 px-2 py-1 rounded text-xs">
-                        <i className="fas fa-copy mr-1"></i>复制
-                      </button>
-                    </div>
-                    <div className="p-4 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-xs overflow-x-auto custom-scrollbar flex-1">
-                      <pre className="whitespace-pre leading-relaxed">{item.code}</pre>
+                  {/* 常用语法 (跨两列) */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <div className="font-bold text-gray-700 border-l-4 border-orange-500 pl-2">常用 DDL / DML 语法</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {mysqlSnippets.map((item, idx) => (
+                        <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden flex flex-col shadow-sm">
+                          <div className="bg-gray-50 px-3 py-1.5 border-b border-gray-200 text-xs font-semibold text-gray-700">{item.title}</div>
+                          <div className="p-3 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-xs overflow-x-auto flex-1">
+                            <pre className="whitespace-pre-wrap">{item.code}</pre>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {activeSubject === 'redis' && (
-              <div className="space-y-5 animate-fade-in">
-                <div className="bg-orange-50 text-orange-800 p-4 rounded-md border border-orange-200 text-sm leading-relaxed shadow-sm">
-                  <p className="mb-2"><i className="fas fa-lightbulb mr-2 text-orange-500"></i> <strong>底层性能密码：</strong> Redis 之所以极快，除了基于内存，还得益于其精心设计的高效数据结构（如用 ZipList 节省内存，用 SkipList 加速范围查找）。</p>
-                  <p><i className="fas fa-clock mr-2 text-orange-500"></i> <strong>复杂度提醒：</strong> 生产环境中要谨慎使用 <code>KEYS *</code> 或时间复杂度为 O(N) 的耗时命令（如超大 List 或 Set 遍历），因为 Redis 处理命令是单线程的，会引发严重阻塞。</p>
                 </div>
-                
-                <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+              )}
+
+              {mysqlTab === 'explain' && (
+                <div className="space-y-6">
+                  <section>
+                    <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">EXPLAIN `type` 字段解析 (性能从好到坏)</h3>
+                    <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Type 值</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">性能级别</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">解析与触发场景</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {mysqlExplain.map((row, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-mono font-bold text-gray-800">{row.type}</td>
+                              <td className="px-4 py-3 whitespace-nowrap"><span className={`px-2 py-1 rounded text-xs ${row.color}`}>{row.level}</span></td>
+                              <td className="px-4 py-3 text-gray-700">{row.desc}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                  <section>
+                    <h3 className="text-base font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">EXPLAIN `Extra` 关键提示</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="p-4 border border-green-200 bg-green-50 rounded-lg">
+                        <div className="font-bold text-green-700 mb-1 font-mono">Using index</div>
+                        <div className="text-gray-600">完美命中覆盖索引，无需回表查询数据，性能极佳。</div>
+                      </div>
+                      <div className="p-4 border border-orange-200 bg-orange-50 rounded-lg">
+                        <div className="font-bold text-orange-700 mb-1 font-mono">Using filesort</div>
+                        <div className="text-gray-600">无法利用索引完成排序，在内存或磁盘中进行了额外的排序操作。建议对 ORDER BY 字段加索引。</div>
+                      </div>
+                      <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                        <div className="font-bold text-red-700 mb-1 font-mono">Using temporary</div>
+                        <div className="text-gray-600">使用了临时表保存中间结果（常见于 GROUP BY、DISTINCT）。极耗性能，需优化。</div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {mysqlTab === 'diagnosis' && (
+                <div className="flex flex-col h-full space-y-4">
+                  <div className="bg-blue-50 text-blue-800 p-3 rounded-md border border-blue-200 text-sm">
+                    <i className="fas fa-info-circle mr-2"></i> 这是一个本地运行的轻量级 SQL 静态扫描工具。输入 SQL 语句，点击分析即可获取优化建议和格式化代码。
+                  </div>
+                  <textarea 
+                    className="w-full p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none resize-none h-32"
+                    value={sqlInput}
+                    onChange={(e) => setSqlInput(e.target.value)}
+                    placeholder="在此输入您的 SQL 语句..."
+                  ></textarea>
+                  <div>
+                    <button onClick={analyzeSql} className="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm">
+                      <i className="fas fa-magic mr-2"></i> 诊断并格式化
+                    </button>
+                  </div>
+                  
+                  {sqlDiagnosis && (
+                    <div className="mt-4 border-t border-gray-200 pt-4 animate-fade-in space-y-4">
+                      {sqlDiagnosis.success ? (
+                        <>
+                          {(sqlDiagnosis.warnings.length > 0 || sqlDiagnosis.info.length > 0) ? (
+                            <div className="space-y-2">
+                              {sqlDiagnosis.warnings.map((w, i) => (
+                                <div key={i} className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded text-sm"><i className="fas fa-exclamation-triangle mr-2"></i>{w}</div>
+                              ))}
+                              {sqlDiagnosis.info.map((info, i) => (
+                                <div key={i} className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded text-sm"><i className="fas fa-info-circle mr-2"></i>{info}</div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded text-sm"><i className="fas fa-check-circle mr-2"></i> SQL 静态检查通过，未发现明显的语法坏味道。</div>
+                          )}
+                          <div>
+                            <div className="text-sm font-bold text-gray-700 mb-2">标准格式化结果：</div>
+                            <pre className="bg-[#1e1e1e] text-[#d4d4d4] p-4 rounded-lg font-mono text-sm overflow-x-auto whitespace-pre-wrap border border-gray-800">
+                              {sqlDiagnosis.formatted}
+                            </pre>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded text-sm">
+                          <i className="fas fa-times-circle mr-2"></i> {sqlDiagnosis.error}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ================= Redis 模块 ================= */}
+        {mainTab === 'redis' && (
+          <>
+            <TabNav 
+              activeTab={redisTab} 
+              setTab={setRedisTab}
+              tabs={[
+                { id: 'data-types', label: '核心数据结构' },
+                { id: 'eviction', label: '内存淘汰策略' },
+                { id: 'persistence', label: '持久化 (RDB vs AOF)' }
+              ]} 
+            />
+            
+            <div className="flex-1 overflow-auto custom-scrollbar mt-4 pr-2 animate-fade-in">
+              {redisTab === 'data-types' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {redisTypes.map((item, idx) => (
+                     <div key={idx} className="border border-gray-200 rounded-lg p-4 shadow-sm bg-gradient-to-br from-white to-gray-50">
+                       <h4 className="font-bold text-orange-600 text-lg mb-2">{item.type}</h4>
+                       <p className="text-sm text-gray-600 leading-relaxed">{item.scene}</p>
+                     </div>
+                  ))}
+                </div>
+              )}
+
+              {redisTab === 'eviction' && (
+                <div className="space-y-4">
+                  <div className="bg-gray-50 text-gray-800 p-3 rounded-md border border-gray-200 text-sm">
+                    <i className="fas fa-lightbulb mr-2 text-yellow-500"></i>
+                    <strong>记忆口诀：</strong> Redis 淘汰策略由 <strong>范围</strong> (`allkeys` 所有键 或 `volatile` 设了过期的键) 和 <strong>算法</strong> (`lru` 最久未使用, `lfu` 最少使用频率, `random` 随机, `ttl` 即将过期) 组合而成。
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {redisEviction.map((item, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4 shadow-sm hover:border-orange-300 transition-colors">
+                        <div className="font-mono font-bold text-gray-800 mb-2">{item.name}</div>
+                        <div className="text-sm text-gray-600">{item.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {redisTab === 'persistence' && (
+                <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[15%]">数据结构</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[15%]">底层实现</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[10%]">复杂度</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[45%]">经典适用场景</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[15%]">常用命令</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-1/4">特性</th>
+                        <th className="px-4 py-3 text-left font-bold text-blue-600 w-3/8">RDB (默认)</th>
+                        <th className="px-4 py-3 text-left font-bold text-green-600 w-3/8">AOF</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {redisAdvancedTypes.map((rt, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-4 font-bold text-orange-600 whitespace-nowrap">{rt.type}</td>
-                          <td className="px-4 py-4 text-gray-600 font-mono text-xs bg-gray-50/50">{rt.internal}</td>
-                          <td className="px-4 py-4 text-red-600 font-mono text-xs font-semibold">{rt.complexity}</td>
-                          <td className="px-4 py-4 text-gray-800 leading-relaxed">{rt.scene}</td>
-                          <td className="px-4 py-4 font-mono text-xs text-blue-600 bg-blue-50/30">{rt.cmds}</td>
+                      {redisPersistence.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-semibold text-gray-700">{row.feature}</td>
+                          <td className="px-4 py-3 text-gray-600">{row.rdb}</td>
+                          <td className="px-4 py-3 text-gray-600">{row.aof}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  <div className="bg-orange-50 p-4 border-t border-orange-100 text-sm text-orange-800">
+                    <strong>生产环境最佳实践：</strong> 通常推荐 <strong>RDB + AOF 混合持久化</strong>（Redis 4.0 引入）。用 RDB 做全量快照保证重启速度，用 AOF 记录两次快照间的增量指令，兼顾了速度与数据安全。
+                  </div>
                 </div>
-              </div>
-            )}
-            
-          </div>
-        </div>
-      );
-    };
+              )}
+            </div>
+          </>
+        )}
 
-
-
- // ==========================================
+      </div>
+    </div>
+  );
+};
+    // ==========================================
     // --- 新增/升级：进阶版文本批量编辑替换工具 ---
     // ==========================================
-    const TextReplacer = ({ showToast }) => {
-      const [input, setInput] = useState('');
-      const [output, setOutput] = useState('');
-      const [findStr, setFindStr] = useState('\\n');
-      const [replaceStr, setReplaceStr] = useState(',');
-      const [useRegex, setUseRegex] = useState(true);
+    
+    // 采用更健壮的防弹获取方式，兼容不同版本的导出结构
+    const getMonacoEditor = () => {
+      if (!window.monaco_react) return null;
+      // 依次尝试获取 default 导出、命名导出或对象本身
+      return window.monaco_react.default || window.monaco_react.Editor || window.monaco_react;
+    };
+    
+    const MonacoEditor = getMonacoEditor();
 
-      // 搜索与定位相关状态
-      const [matches, setMatches] = useState([]);
-      const [activeMatchIdx, setActiveMatchIdx] = useState(-1);
+const TextReplacer = ({ showToast }) => {
+  // 统一使用全局解构出的 hooks
+  const [input, setInput] = useState('');
+  const [output, setOutput] = useState('');
+  const [findStr, setFindStr] = useState('\\n');
+  const [replaceStr, setReplaceStr] = useState(',');
+  const [useRegex, setUseRegex] = useState(true);
+
+  const [mode, setMode] = useState('edit'); 
+  const [language, setLanguage] = useState('javascript'); 
+  const [splitRatio, setSplitRatio] = useState(50); 
+
+  const inputEditorRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // 1. 处理替换逻辑 (生成输出)
+  useEffect(() => {
+    if (!input) {
+      setOutput('');
+      return;
+    }
+    try {
+      const actualReplace = replaceStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+      const actualFind = findStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
       
-      const textareaRef = useRef(null);
-      const gutterRef = useRef(null);
+      if (!actualFind) {
+         setOutput(input);
+         return;
+      }
 
-      // 1. 处理查找匹配项 (用于导航定位)
-      useEffect(() => {
-        if (!findStr || !input) {
-          setMatches([]);
-          setActiveMatchIdx(-1);
+      if (useRegex) {
+        const regex = new RegExp(actualFind, 'g');
+        setOutput(input.replace(regex, actualReplace));
+      } else {
+        setOutput(input.split(actualFind).join(actualReplace));
+      }
+    } catch (e) {
+      setOutput(`// 表达式或替换规则错误: ${e.message}`);
+    }
+  }, [input, findStr, replaceStr, useRegex]);
+
+  // 2. Monaco Editor 挂载事件
+  const handleEditorDidMount = (editor, monaco) => {
+    inputEditorRef.current = editor;
+  };
+
+  // 3. 一键格式化代码 
+// 3. 终极一键格式化 (采用 Chrome 同款 js-beautify 引擎)
+  const formatCode = () => {
+    if (!inputEditorRef.current) return;
+    
+    const unformattedText = inputEditorRef.current.getValue();
+    if (!unformattedText.trim()) return;
+
+    try {
+      let formattedText = unformattedText;
+
+      // 如果没有加载 js-beautify，则回退到 Monaco 原生格式化
+      if (typeof window.html_beautify === 'undefined' || typeof window.js_beautify === 'undefined') {
+          inputEditorRef.current.getAction('editor.action.formatDocument').run();
+          if (showToast) showToast("已应用基础格式化", "success");
           return;
-        }
-        try {
-          const actualFind = findStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-          if (!actualFind) return;
+      }
 
-          const newMatches = [];
-          if (useRegex) {
-            const regex = new RegExp(actualFind, 'g');
-            let match;
-            while ((match = regex.exec(input)) !== null) {
-              newMatches.push({ start: match.index, end: match.index + match[0].length });
-              if (regex.lastIndex === match.index) regex.lastIndex++; // 防止零宽断言死循环
-            }
-          } else {
-            let startIndex = 0;
-            let index;
-            while ((index = input.indexOf(actualFind, startIndex)) > -1) {
-              newMatches.push({ start: index, end: index + actualFind.length });
-              startIndex = index + actualFind.length;
-            }
-          }
-          setMatches(newMatches);
-          setActiveMatchIdx(newMatches.length > 0 ? 0 : -1);
-        } catch (e) {
-          setMatches([]);
-          setActiveMatchIdx(-1);
-        }
-      }, [input, findStr, useRegex]);
-
-      // 2. 处理替换逻辑 (输出区)
-      useEffect(() => {
-        if (!input) {
-          setOutput('');
+      // 针对不同语言调用对应的 beautify 引擎
+      if (language === 'html' || language === 'xml') {
+          // HTML 格式化：保持原生标签结构，不乱加空格
+          formattedText = window.html_beautify(unformattedText, {
+              indent_size: 2,
+              preserve_newlines: true,
+              max_preserve_newlines: 2,
+              wrap_line_length: 0, // 0表示无限长，坚决不强制把长文本换行！(解决正则被截断的问题)
+              indent_inner_html: true,
+          });
+      } else if (language === 'javascript' || language === 'json') {
+          // JS/JSON 格式化：开启 e4x 魔法，完美支持 JSX
+          formattedText = window.js_beautify(unformattedText, {
+              indent_size: 2,
+              preserve_newlines: true,
+              max_preserve_newlines: 2,
+              e4x: true, // 核心魔法：允许在 JS 中完美嵌套 XML/JSX
+              space_in_empty_paren: false,
+              wrap_line_length: 0, // 禁止自动截断超长代码(保护长字符串和正则)
+          });
+      } else {
+          inputEditorRef.current.getAction('editor.action.formatDocument').run();
+          if (showToast) showToast("已应用基础格式化", "success");
           return;
-        }
-        try {
-          const actualReplace = replaceStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-          const actualFind = findStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-          
-          if (!actualFind) {
-             setOutput(input);
-             return;
-          }
+      }
 
-          if (useRegex) {
-            const regex = new RegExp(actualFind, 'g');
-            setOutput(input.replace(regex, actualReplace));
-          } else {
-            setOutput(input.split(actualFind).join(actualReplace));
-          }
-        } catch (e) {
-          setOutput(`// 表达式或替换规则错误: ${e.message}`);
-        }
-      }, [input, findStr, replaceStr, useRegex]);
+      // 将完美格式化后的代码写回编辑器
+      inputEditorRef.current.setValue(formattedText);
+      if (showToast) showToast("已应用 Chrome 级智能格式化", "success");
+      
+    } catch (e) {
+      console.error(e);
+      if (showToast) showToast(`格式化失败：${e.message}`, "error");
+    }
+  };
 
-      // 行号计算
-      const lineCount = input.split('\n').length || 1;
-      const lines = Array.from({ length: lineCount }, (_, i) => i + 1);
+  // 4. 拖拽调整窗口大小逻辑
+  const handleDrag = (e) => {
+    e.preventDefault();
+    const container = containerRef.current;
+    if (!container) return;
 
-      // 同步滚动条 (文本框滚动时，行号栏跟着滚)
-      const handleScroll = (e) => {
-        if (gutterRef.current) {
-          gutterRef.current.scrollTop = e.target.scrollTop;
-        }
-      };
-
-      // 跳转到指定匹配项并高亮居中
-      const jumpToMatch = (idx) => {
-        if (idx < 0 || idx >= matches.length || !textareaRef.current) return;
-        setActiveMatchIdx(idx);
-        const match = matches[idx];
-        
-        const ta = textareaRef.current;
-        ta.focus();
-        ta.setSelectionRange(match.start, match.end);
-        
-        // 计算目标行，将滚动条平滑滚动到视野中央
-        // 假设 line-height 是 24px (1.5rem)
-        const textBefore = input.substring(0, match.start);
-        const linesBefore = textBefore.split('\n').length - 1;
-        const targetScrollTop = (linesBefore * 24) - (ta.clientHeight / 2) + 12; 
-        
-        ta.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
-      };
-
-      const applyPreset = (presetFind, presetReplace, isRegex = true) => {
-        setFindStr(presetFind);
-        setReplaceStr(presetReplace);
-        setUseRegex(isRegex);
-        showToast("已应用预设规则", "success");
-      };
-
-      return (
-        <div className="flex flex-col h-full space-y-4">
-          
-          {/* 常用预设快捷操作 */}
-          <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
-             <span className="text-gray-600 text-sm font-medium mr-1">
-                 <i className="fas fa-bolt text-yellow-500 mr-1"></i> 常用预设:
-             </span>
-             <Button variant="outline" onClick={() => applyPreset('\\n', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full">换行 转 逗号</Button>
-             <Button variant="outline" onClick={() => applyPreset(',', '\\n')} className="!py-1.5 !px-3 !text-xs !rounded-full">逗号 转 换行</Button>
-             <Button variant="outline" onClick={() => applyPreset('\\s+', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full">空白 转 逗号</Button>
-             <Button variant="outline" onClick={() => applyPreset("'", '"', false)} className="!py-1.5 !px-3 !text-xs !rounded-full">单引号 转 双引号</Button>
-             <div className="flex-1"></div>
-             <Button onClick={() => { setInput('224050\n45705\n105745\n193123\n57424'); applyPreset('\\n', ','); }} variant="outline" icon="code">填入示例</Button>
-             <Button onClick={() => { setInput(''); setOutput(''); }} variant="danger" icon="trash-can">清空</Button>
-          </div>
-
-          {/* 查找与导航控制面板 */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
-             <div className="flex items-center gap-2 flex-1 relative">
-               <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">查找目标</span>
-               <div className="flex-1 relative flex items-center">
-                 <input
-                   type="text"
-                   className="w-full bg-gray-50 border border-gray-300 text-gray-800 pl-3 pr-24 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
-                   value={findStr}
-                   onChange={(e) => setFindStr(e.target.value)}
-                   placeholder="例如: \n"
-                   spellCheck="false"
-                 />
-                 {/* 搜索导航组件 */}
-                 {matches.length > 0 && (
-                   <div className="absolute right-2 flex items-center bg-white border border-gray-200 rounded shadow-sm overflow-hidden h-7">
-                     <span className="text-xs text-gray-500 px-2 select-none border-r border-gray-200 bg-gray-50">
-                       {activeMatchIdx + 1} / {matches.length}
-                     </span>
-                     <button onClick={() => jumpToMatch(activeMatchIdx - 1 < 0 ? matches.length - 1 : activeMatchIdx - 1)} className="px-2 h-full text-gray-500 hover:bg-orange-50 hover:text-orange-600 transition-colors border-r border-gray-200" title="上一个">
-                       <i className="fas fa-chevron-up text-[10px]"></i>
-                     </button>
-                     <button onClick={() => jumpToMatch(activeMatchIdx + 1 >= matches.length ? 0 : activeMatchIdx + 1)} className="px-2 h-full text-gray-500 hover:bg-orange-50 hover:text-orange-600 transition-colors" title="下一个">
-                       <i className="fas fa-chevron-down text-[10px]"></i>
-                     </button>
-                   </div>
-                 )}
-               </div>
-             </div>
-             <div className="flex items-center gap-2 flex-1">
-               <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">替换为</span>
-               <input
-                 type="text"
-                 className="flex-1 bg-gray-50 border border-gray-300 text-gray-800 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
-                 value={replaceStr}
-                 onChange={(e) => setReplaceStr(e.target.value)}
-                 placeholder="例如: , "
-                 spellCheck="false"
-               />
-             </div>
-             <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 shrink-0">
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer font-medium select-none">
-                  <input 
-                     type="checkbox" 
-                     checked={useRegex} 
-                     onChange={(e) => setUseRegex(e.target.checked)} 
-                     className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500" 
-                  />
-                  正则匹配
-                </label>
-             </div>
-          </div>
-
-          {/* 带行号的源文本区 与 输出区 */}
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[300px]">
-             
-             {/* 源文本编辑器 (带行号) */}
-             <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-               <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
-                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">源文本区 (Source Text)</span>
-               </div>
-               <div className="flex-1 relative flex bg-white overflow-hidden">
-                 {/* 行号侧边栏 */}
-                 <div 
-                   ref={gutterRef}
-                   className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right py-4 pr-2 flex flex-col overflow-hidden select-none"
-                   style={{ fontSize: '14px', lineHeight: '24px' }}
-                 >
-                   {lines.map(line => (
-                     <div key={line} className="text-gray-400 font-mono text-xs">{line}</div>
-                   ))}
-                 </div>
-                 {/* 实际输入框 */}
-                 <textarea
-                   ref={textareaRef}
-                   className="flex-1 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar"
-                   style={{ fontSize: '14px', lineHeight: '24px', whiteSpace: 'pre', overflowWrap: 'normal', overflowX: 'auto' }}
-                   value={input}
-                   onChange={(e) => setInput(e.target.value)}
-                   onScroll={handleScroll}
-                   placeholder="在此粘贴需要处理的文本..."
-                   spellCheck="false"
-                 />
-               </div>
-             </div>
-
-             {/* 处理结果区 */}
-             <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-               <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
-                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">处理结果 (Replaced Result)</span>
-                 <button onClick={() => copyToClipboard(output, () => showToast("结果已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors" title="一键复制结果">
-                     <i className="fas fa-copy"></i>
-                 </button>
-               </div>
-               <div className="flex-1 relative bg-white">
-                 <textarea
-                   className="absolute inset-0 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar"
-                   style={{ fontSize: '14px', lineHeight: '24px', whiteSpace: 'pre', overflowWrap: 'normal', overflowX: 'auto' }}
-                   value={output}
-                   readOnly
-                   placeholder="替换后的结果会实时显示在这里..."
-                   spellCheck="false"
-                 />
-               </div>
-             </div>
-
-          </div>
-        </div>
-      );
+    const onMouseMove = (moveEvent) => {
+      const containerRect = container.getBoundingClientRect();
+      const newWidth = moveEvent.clientX - containerRect.left;
+      const newRatio = (newWidth / containerRect.width) * 100;
+      if (newRatio > 20 && newRatio < 80) {
+        setSplitRatio(newRatio);
+      }
     };
 
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      window.dispatchEvent(new Event('resize')); // 触发重绘
+    };
 
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const applyPreset = (presetFind, presetReplace, isRegex = true) => {
+    setFindStr(presetFind);
+    setReplaceStr(presetReplace);
+    setUseRegex(isRegex);
+    if (showToast) showToast("已应用预设规则", "success");
+  };
+
+  // 兜底 UI：如果 CDN 失败导致没拿到编辑器组件
+  if (!MonacoEditor) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-500 bg-white rounded-lg border border-gray-200 p-8">
+        <i className="fas fa-triangle-exclamation text-4xl text-orange-400 mb-4"></i>
+        <p>高级编辑器核心库加载失败，请检查网络或刷新页面重试。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full space-y-4 bg-gray-50 p-4 rounded-xl">
+      {/* 顶部工具栏 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
+        <div className="flex items-center gap-2">
+           <span className="text-gray-600 text-sm font-medium mr-1">
+               <i className="fas fa-magic text-purple-500 mr-1"></i> 快捷操作:
+           </span>
+           <button onClick={() => applyPreset('\\n', ',')} className="px-3 py-1.5 text-xs border rounded-full hover:bg-gray-100 transition-colors">换行 转 逗号</button>
+           <button onClick={() => applyPreset('"', "'", false)} className="px-3 py-1.5 text-xs border rounded-full hover:bg-gray-100 transition-colors">双转单引号</button>
+           
+           <div className="h-4 w-px bg-gray-300 mx-2"></div>
+           
+           <select 
+             className="text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 py-1 pl-2 pr-6 outline-none"
+             value={language}
+             onChange={(e) => setLanguage(e.target.value)}
+           >
+             <option value="json">JSON</option>
+             <option value="html">HTML</option>
+             <option value="javascript">JavaScript</option>
+             <option value="xml">XML</option>
+             <option value="plaintext">纯文本</option>
+           </select>
+
+           <button onClick={formatCode} className="px-3 py-1.5 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100 transition-colors flex items-center gap-1">
+             <i className="fas fa-align-left"></i> 一键格式化
+           </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+           <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+             <button 
+               onClick={() => setMode('edit')} 
+               className={`px-4 py-1.5 text-xs rounded-md font-medium transition-all ${mode === 'edit' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+             >
+               全屏编辑
+             </button>
+             <button 
+               onClick={() => setMode('replace')} 
+               className={`px-4 py-1.5 text-xs rounded-md font-medium transition-all ${mode === 'replace' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+             >
+               分屏替换
+             </button>
+           </div>
+           <button onClick={() => { setInput(''); setOutput(''); }} className="px-3 py-1.5 text-xs bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 transition-colors">
+             <i className="fas fa-trash-can mr-1"></i>清空
+           </button>
+        </div>
+      </div>
+
+      {/* 查找与替换控制面板 (仅在替换模式显示) */}
+      <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0 transition-all duration-300 ${mode === 'edit' ? 'hidden' : 'flex'}`}>
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">查找目标</span>
+          <input
+            type="text"
+            className="w-full bg-gray-50 border border-gray-300 px-3 py-2 rounded-lg font-mono text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-shadow"
+            value={findStr}
+            onChange={(e) => setFindStr(e.target.value)}
+            placeholder="例如: \n"
+            spellCheck="false"
+          />
+        </div>
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">替换为</span>
+          <input
+            type="text"
+            className="w-full bg-gray-50 border border-gray-300 px-3 py-2 rounded-lg font-mono text-sm outline-none focus:ring-2 focus:ring-purple-500 transition-shadow"
+            value={replaceStr}
+            onChange={(e) => setReplaceStr(e.target.value)}
+            spellCheck="false"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer font-medium select-none bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+          <input type="checkbox" checked={useRegex} onChange={(e) => setUseRegex(e.target.checked)} className="w-4 h-4 text-purple-600 rounded" />
+          正则匹配
+        </label>
+      </div>
+
+      {/* 编辑器核心区域 */}
+      <div ref={containerRef} className="flex-1 flex w-full h-full min-h-[450px] border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white">
+        
+        {/* 左侧：输入/编辑区 */}
+        <div style={{ width: mode === 'edit' ? '100%' : `${splitRatio}%` }} className="flex flex-col h-full transition-all duration-300 ease-in-out relative">
+          <div className="bg-gray-100 px-3 py-1.5 border-b border-gray-200 text-xs font-semibold text-gray-500 flex justify-between items-center shrink-0">
+             <span>源文本 (按 Ctrl+F / Cmd+F 搜索代码)</span>
+          </div>
+          <div className="flex-1 w-full relative">
+            <MonacoEditor
+              height="100%"
+              language={language}
+              value={input}
+              onChange={(value) => setInput(value || '')}
+              onMount={handleEditorDidMount}
+              theme="light"
+              options={{
+                minimap: { enabled: false }, 
+                wordWrap: 'on',
+                folding: true, 
+                lineNumbersMinChars: 3,
+                scrollBeyondLastLine: false, 
+                automaticLayout: true, 
+                fontSize: 14,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* 拖拽分割线 */}
+        {mode === 'replace' && (
+          <div 
+            onMouseDown={handleDrag}
+            className="w-3 bg-gray-50 hover:bg-purple-100 cursor-col-resize flex flex-col justify-center items-center transition-colors shrink-0 z-10 border-x border-gray-200 group"
+            title="拖拽调整比例"
+          >
+            <div className="w-1 h-8 bg-gray-300 rounded-full group-hover:bg-purple-400 transition-colors"></div>
+          </div>
+        )}
+
+        {/* 右侧：处理结果区 */}
+        {mode === 'replace' && (
+          <div style={{ width: `${100 - splitRatio}%` }} className="flex flex-col h-full bg-gray-50 transition-all duration-300 ease-in-out relative">
+            <div className="bg-gray-100 px-3 py-1.5 border-b border-gray-200 text-xs font-semibold text-gray-500 flex justify-between items-center shrink-0">
+               <span>处理结果</span>
+               <button onClick={() => {
+                 navigator.clipboard.writeText(output);
+                 if (showToast) showToast("已复制到剪贴板", "success");
+               }} className="text-purple-600 hover:text-purple-800 transition-colors">
+                 <i className="fas fa-copy"></i> 复制
+               </button>
+            </div>
+            <div className="flex-1 w-full relative">
+              <MonacoEditor
+                height="100%"
+                language={language}
+                value={output}
+                theme="light"
+                options={{
+                  readOnly: true, 
+                  minimap: { enabled: false },
+                  wordWrap: 'on',
+                  folding: true,
+                  lineNumbersMinChars: 3,
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
     // ==========================================
     // --- 新增：正则表达式在线测试工具组件 ---
     // ==========================================
@@ -2094,7 +2394,7 @@
         { id: 'java', label: 'JSON 转 Java', icon: 'layer-group' },
         { id: 'git', label: 'Git 分支生成器', icon: 'code-branch' },
         { id: 'regex', label: '正则表达式测试', icon: 'spell-check' },
-        { id: 'text-replace', label: '文本批量替换', icon: 'wand-magic-sparkles' }, // <--- 新增这行
+        { id: 'text-replace', label: '代码编辑器', icon: 'wand-magic-sparkles' }, // <--- 新增这行
         { id: 'tools', label: '常用开发工具', icon: 'terminal' },
         { id: 'ref', label: '开发备忘录 (SQL/Redis)', icon: 'book-bookmark' },
       ];
