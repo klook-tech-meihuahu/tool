@@ -1407,6 +1407,9 @@
 
 
 
+ // ==========================================
+    // --- 新增/升级：进阶版文本批量编辑替换工具 ---
+    // ==========================================
     const TextReplacer = ({ showToast }) => {
       const [input, setInput] = useState('');
       const [output, setOutput] = useState('');
@@ -1414,37 +1417,103 @@
       const [replaceStr, setReplaceStr] = useState(',');
       const [useRegex, setUseRegex] = useState(true);
 
-      // 处理替换逻辑
+      // 搜索与定位相关状态
+      const [matches, setMatches] = useState([]);
+      const [activeMatchIdx, setActiveMatchIdx] = useState(-1);
+      
+      const textareaRef = useRef(null);
+      const gutterRef = useRef(null);
+
+      // 1. 处理查找匹配项 (用于导航定位)
+      useEffect(() => {
+        if (!findStr || !input) {
+          setMatches([]);
+          setActiveMatchIdx(-1);
+          return;
+        }
+        try {
+          const actualFind = findStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+          if (!actualFind) return;
+
+          const newMatches = [];
+          if (useRegex) {
+            const regex = new RegExp(actualFind, 'g');
+            let match;
+            while ((match = regex.exec(input)) !== null) {
+              newMatches.push({ start: match.index, end: match.index + match[0].length });
+              if (regex.lastIndex === match.index) regex.lastIndex++; // 防止零宽断言死循环
+            }
+          } else {
+            let startIndex = 0;
+            let index;
+            while ((index = input.indexOf(actualFind, startIndex)) > -1) {
+              newMatches.push({ start: index, end: index + actualFind.length });
+              startIndex = index + actualFind.length;
+            }
+          }
+          setMatches(newMatches);
+          setActiveMatchIdx(newMatches.length > 0 ? 0 : -1);
+        } catch (e) {
+          setMatches([]);
+          setActiveMatchIdx(-1);
+        }
+      }, [input, findStr, useRegex]);
+
+      // 2. 处理替换逻辑 (输出区)
       useEffect(() => {
         if (!input) {
           setOutput('');
           return;
         }
         try {
-          // 允许用户在输入框中输入字面量 \n 和 \t 并将其转换为实际的换行和制表符
           const actualReplace = replaceStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+          const actualFind = findStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
           
+          if (!actualFind) {
+             setOutput(input);
+             return;
+          }
+
           if (useRegex) {
-            if (!findStr) {
-               setOutput(input);
-               return;
-            }
-            // 默认开启全局匹配 (g)
-            const regex = new RegExp(findStr, 'g');
+            const regex = new RegExp(actualFind, 'g');
             setOutput(input.replace(regex, actualReplace));
           } else {
-            // 普通文本替换
-            const actualFind = findStr.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-            if (!actualFind) {
-               setOutput(input);
-               return;
-            }
             setOutput(input.split(actualFind).join(actualReplace));
           }
         } catch (e) {
           setOutput(`// 表达式或替换规则错误: ${e.message}`);
         }
       }, [input, findStr, replaceStr, useRegex]);
+
+      // 行号计算
+      const lineCount = input.split('\n').length || 1;
+      const lines = Array.from({ length: lineCount }, (_, i) => i + 1);
+
+      // 同步滚动条 (文本框滚动时，行号栏跟着滚)
+      const handleScroll = (e) => {
+        if (gutterRef.current) {
+          gutterRef.current.scrollTop = e.target.scrollTop;
+        }
+      };
+
+      // 跳转到指定匹配项并高亮居中
+      const jumpToMatch = (idx) => {
+        if (idx < 0 || idx >= matches.length || !textareaRef.current) return;
+        setActiveMatchIdx(idx);
+        const match = matches[idx];
+        
+        const ta = textareaRef.current;
+        ta.focus();
+        ta.setSelectionRange(match.start, match.end);
+        
+        // 计算目标行，将滚动条平滑滚动到视野中央
+        // 假设 line-height 是 24px (1.5rem)
+        const textBefore = input.substring(0, match.start);
+        const linesBefore = textBefore.split('\n').length - 1;
+        const targetScrollTop = (linesBefore * 24) - (ta.clientHeight / 2) + 12; 
+        
+        ta.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+      };
 
       const applyPreset = (presetFind, presetReplace, isRegex = true) => {
         setFindStr(presetFind);
@@ -1461,28 +1530,43 @@
              <span className="text-gray-600 text-sm font-medium mr-1">
                  <i className="fas fa-bolt text-yellow-500 mr-1"></i> 常用预设:
              </span>
-             <Button variant="outline" onClick={() => applyPreset('\\n', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="将换行符替换为逗号">换行 转 逗号</Button>
-             <Button variant="outline" onClick={() => applyPreset(',', '\\n')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="将逗号替换为换行符">逗号 转 换行</Button>
-             <Button variant="outline" onClick={() => applyPreset('\\s+', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="将所有空格/制表符/换行替换为逗号">空白 转 逗号</Button>
-             <Button variant="outline" onClick={() => applyPreset('\\s+', '')} className="!py-1.5 !px-3 !text-xs !rounded-full" title="删除所有空格、制表符和换行">去除所有空白</Button>
-             <Button variant="outline" onClick={() => applyPreset("'", '"', false)} className="!py-1.5 !px-3 !text-xs !rounded-full" title="单引号替换为双引号">单引号 转 双引号</Button>
+             <Button variant="outline" onClick={() => applyPreset('\\n', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full">换行 转 逗号</Button>
+             <Button variant="outline" onClick={() => applyPreset(',', '\\n')} className="!py-1.5 !px-3 !text-xs !rounded-full">逗号 转 换行</Button>
+             <Button variant="outline" onClick={() => applyPreset('\\s+', ',')} className="!py-1.5 !px-3 !text-xs !rounded-full">空白 转 逗号</Button>
+             <Button variant="outline" onClick={() => applyPreset("'", '"', false)} className="!py-1.5 !px-3 !text-xs !rounded-full">单引号 转 双引号</Button>
              <div className="flex-1"></div>
              <Button onClick={() => { setInput('224050\n45705\n105745\n193123\n57424'); applyPreset('\\n', ','); }} variant="outline" icon="code">填入示例</Button>
              <Button onClick={() => { setInput(''); setOutput(''); }} variant="danger" icon="trash-can">清空</Button>
           </div>
 
-          {/* 查找与替换控制面板 */}
+          {/* 查找与导航控制面板 */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
-             <div className="flex items-center gap-2 flex-1">
+             <div className="flex items-center gap-2 flex-1 relative">
                <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">查找目标</span>
-               <input
-                 type="text"
-                 className="flex-1 bg-gray-50 border border-gray-300 text-gray-800 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
-                 value={findStr}
-                 onChange={(e) => setFindStr(e.target.value)}
-                 placeholder="例如: \n 或 \s+"
-                 spellCheck="false"
-               />
+               <div className="flex-1 relative flex items-center">
+                 <input
+                   type="text"
+                   className="w-full bg-gray-50 border border-gray-300 text-gray-800 pl-3 pr-24 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                   value={findStr}
+                   onChange={(e) => setFindStr(e.target.value)}
+                   placeholder="例如: \n"
+                   spellCheck="false"
+                 />
+                 {/* 搜索导航组件 */}
+                 {matches.length > 0 && (
+                   <div className="absolute right-2 flex items-center bg-white border border-gray-200 rounded shadow-sm overflow-hidden h-7">
+                     <span className="text-xs text-gray-500 px-2 select-none border-r border-gray-200 bg-gray-50">
+                       {activeMatchIdx + 1} / {matches.length}
+                     </span>
+                     <button onClick={() => jumpToMatch(activeMatchIdx - 1 < 0 ? matches.length - 1 : activeMatchIdx - 1)} className="px-2 h-full text-gray-500 hover:bg-orange-50 hover:text-orange-600 transition-colors border-r border-gray-200" title="上一个">
+                       <i className="fas fa-chevron-up text-[10px]"></i>
+                     </button>
+                     <button onClick={() => jumpToMatch(activeMatchIdx + 1 >= matches.length ? 0 : activeMatchIdx + 1)} className="px-2 h-full text-gray-500 hover:bg-orange-50 hover:text-orange-600 transition-colors" title="下一个">
+                       <i className="fas fa-chevron-down text-[10px]"></i>
+                     </button>
+                   </div>
+                 )}
+               </div>
              </div>
              <div className="flex items-center gap-2 flex-1">
                <span className="text-sm font-semibold text-gray-600 shrink-0 border-r border-gray-200 pr-2">替换为</span>
@@ -1491,11 +1575,11 @@
                  className="flex-1 bg-gray-50 border border-gray-300 text-gray-800 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
                  value={replaceStr}
                  onChange={(e) => setReplaceStr(e.target.value)}
-                 placeholder="例如: , (支持输入 \n)"
+                 placeholder="例如: , "
                  spellCheck="false"
                />
              </div>
-             <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+             <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 shrink-0">
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer font-medium select-none">
                   <input 
                      type="checkbox" 
@@ -1503,30 +1587,64 @@
                      onChange={(e) => setUseRegex(e.target.checked)} 
                      className="w-4 h-4 text-orange-500 rounded focus:ring-orange-500" 
                   />
-                  使用正则表达式 (全局)
+                  正则匹配
                 </label>
              </div>
           </div>
 
-          {/* 内容与结果区 */}
+          {/* 带行号的源文本区 与 输出区 */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[300px]">
-             <TextAreaPanel 
-                label="源文本区 (Source Text)" 
-                value={input} 
-                onChange={(e) => setInput(e.target.value)} 
-                placeholder="在此粘贴需要处理的文本..." 
-             />
-             <TextAreaPanel 
-                label="处理结果 (Replaced Result)" 
-                value={output} 
-                readOnly 
-                placeholder="替换后的结果会实时显示在这里..."
-                extraAction={
-                   <button onClick={() => copyToClipboard(output, () => showToast("结果已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors" title="一键复制结果">
+             
+             {/* 源文本编辑器 (带行号) */}
+             <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+               <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
+                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">源文本区 (Source Text)</span>
+               </div>
+               <div className="flex-1 relative flex bg-white overflow-hidden">
+                 {/* 行号侧边栏 */}
+                 <div 
+                   ref={gutterRef}
+                   className="w-12 shrink-0 bg-gray-50 border-r border-gray-200 text-right py-4 pr-2 flex flex-col overflow-hidden select-none"
+                   style={{ fontSize: '14px', lineHeight: '24px' }}
+                 >
+                   {lines.map(line => (
+                     <div key={line} className="text-gray-400 font-mono text-xs">{line}</div>
+                   ))}
+                 </div>
+                 {/* 实际输入框 */}
+                 <textarea
+                   ref={textareaRef}
+                   className="flex-1 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar"
+                   style={{ fontSize: '14px', lineHeight: '24px', whiteSpace: 'pre', overflowWrap: 'normal', overflowX: 'auto' }}
+                   value={input}
+                   onChange={(e) => setInput(e.target.value)}
+                   onScroll={handleScroll}
+                   placeholder="在此粘贴需要处理的文本..."
+                   spellCheck="false"
+                 />
+               </div>
+             </div>
+
+             {/* 处理结果区 */}
+             <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+               <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
+                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">处理结果 (Replaced Result)</span>
+                 <button onClick={() => copyToClipboard(output, () => showToast("结果已复制到剪贴板", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors" title="一键复制结果">
                      <i className="fas fa-copy"></i>
-                   </button>
-                }
-             />
+                 </button>
+               </div>
+               <div className="flex-1 relative bg-white">
+                 <textarea
+                   className="absolute inset-0 w-full h-full bg-transparent text-gray-800 p-4 font-mono text-sm resize-none focus:outline-none custom-scrollbar"
+                   style={{ fontSize: '14px', lineHeight: '24px', whiteSpace: 'pre', overflowWrap: 'normal', overflowX: 'auto' }}
+                   value={output}
+                   readOnly
+                   placeholder="替换后的结果会实时显示在这里..."
+                   spellCheck="false"
+                 />
+               </div>
+             </div>
+
           </div>
         </div>
       );
