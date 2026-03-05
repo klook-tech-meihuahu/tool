@@ -1,3 +1,4 @@
+
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -1163,155 +1164,194 @@
     // --- 更新：常用开发工具模块 (DevTools) ---
     // ==========================================
     const DevTools = ({ showToast }) => {
-      const [input, setInput] = useState('');
-      const [output, setOutput] = useState('');
+  const [input, setInput] = useState('');
+  const [output, setOutput] = useState('');
+  const [activeTool, setActiveTool] = useState('url2json'); // 默认选中
 
-      const processText = async (type) => {
-        // 部分生成类工具不需要输入
-        if (!input && type !== 'uuid') {
-            showToast("请先在上方输入需要处理的文本", "info");
-            return;
-        }
-        
-        try {
-          let res = '';
-          switch (type) {
-            case 'b64encode': 
-              res = btoa(unescape(encodeURIComponent(input))); 
-              break;
-            case 'b64decode': 
-              res = decodeURIComponent(escape(atob(input))); 
-              break;
-            case 'urlencode': 
-              res = encodeURIComponent(input); 
-              break;
-            case 'urldecode': 
-              res = decodeURIComponent(input); 
-              break;
-            case 'url2json':
-              // 解析 URL 参数为 JSON
-              const urlStr = input.trim();
-              const queryString = urlStr.includes('?') ? urlStr.split('?')[1] : urlStr;
-              const params = new URLSearchParams(queryString);
-              const obj = {};
-              for (const [key, value] of params.entries()) {
-                obj[key] = value;
-              }
-              if (Object.keys(obj).length === 0) throw new Error("未解析到任何参数");
-              res = JSON.stringify(obj, null, 4);
-              break;
-            case 'json2url':
-              // JSON 序列化为 URL 参数
-              const jsonObj = JSON.parse(input);
-              if (typeof jsonObj !== 'object' || jsonObj === null) throw new Error("输入必须是 JSON 对象");
-              const urlParams = new URLSearchParams();
-              for (const key in jsonObj) {
-                if (jsonObj.hasOwnProperty(key)) {
-                  const val = typeof jsonObj[key] === 'object' ? JSON.stringify(jsonObj[key]) : jsonObj[key];
-                  urlParams.append(key, val);
-                }
-              }
-              res = urlParams.toString();
-              break;
-            case 'jwt':
-              // JWT 解码 (不校验签名，只解明文)
-              const parts = input.trim().split('.');
-              if (parts.length !== 3) throw new Error("无效的 JWT 格式，应包含 3 个由点分隔的部分");
-              // 修复 Base64Url 编码问题
-              const base64UrlToB64 = (str) => str.replace(/-/g, '+').replace(/_/g, '/');
-              const header = JSON.parse(decodeURIComponent(escape(atob(base64UrlToB64(parts[0])))));
-              const payload = JSON.parse(decodeURIComponent(escape(atob(base64UrlToB64(parts[1])))));
-              res = JSON.stringify({ header, payload }, null, 4);
-              break;
-            case 'uuid':
-              // 生成 UUID v4
-              if (crypto.randomUUID) {
-                res = crypto.randomUUID();
-              } else {
-                // 降级方案
-                res = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                  const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-                  return v.toString(16);
-                });
-              }
-              if(input) res = input + '\n' + res; // 如果有内容就追加
-              break;
-            case 'sha256':
-              if (!window.isSecureContext && window.location.protocol !== 'file:') {
-                 throw new Error("SHA-256 需要在 HTTPS 或本地环境下运行");
-              }
-              const msgBuffer = new TextEncoder().encode(input);
-              const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-              const hashArray = Array.from(new Uint8Array(hashBuffer));
-              res = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-              break;
-            default: break;
+  // 1. 去掉了 useCallback，变成普通的箭头函数
+  // 注意：这里接收 textInput 作为参数，确保拿到的是最新的输入值
+  const processText = async (type, textInput) => {
+    if (!textInput && type !== 'uuid') {
+        setOutput('');
+        return;
+    }
+
+    try {
+      let res = '';
+      switch (type) {
+        case 'url2json':
+          const urlStr = textInput.trim();
+          const queryString = urlStr.includes('?') ? urlStr.split('?')[1] : urlStr;
+          const params = new URLSearchParams(queryString);
+          const obj = {};
+          for (const [key, value] of params.entries()) {
+            obj[key] = value;
           }
-          setOutput(res);
-          showToast("执行成功", "success");
-        } catch (e) {
-          showToast(`处理失败: ${e.message || "请检查输入格式"}`, "error");
-        }
-      };
+          if (Object.keys(obj).length === 0) throw new Error("未解析到任何参数");
+          res = JSON.stringify(obj, null, 4);
+          break;
+        case 'json2url':
+          const jsonObj = JSON.parse(textInput);
+          if (typeof jsonObj !== 'object' || jsonObj === null) throw new Error("输入必须是 JSON 对象");
+          const urlParams = new URLSearchParams();
+          for (const key in jsonObj) {
+            if (jsonObj.hasOwnProperty(key)) {
+              const val = typeof jsonObj[key] === 'object' ? JSON.stringify(jsonObj[key]) : jsonObj[key];
+              urlParams.append(key, val);
+            }
+          }
+          res = urlParams.toString();
+          break;
+        case 'jwt':
+          const parts = textInput.trim().split('.');
+          if (parts.length !== 3) throw new Error("无效的 JWT 格式");
+          const base64UrlToB64 = (str) => str.replace(/-/g, '+').replace(/_/g, '/');
+          const header = JSON.parse(decodeURIComponent(escape(atob(base64UrlToB64(parts[0])))));
+          const payload = JSON.parse(decodeURIComponent(escape(atob(base64UrlToB64(parts[1])))));
+          res = JSON.stringify({ header, payload }, null, 4);
+          break;
+        case 'timestamp2date':
+          const tsStr = textInput.trim();
+          let ts = Number(tsStr);
+          if (isNaN(ts)) throw new Error("请输入有效的时间戳数字");
+          if (tsStr.length <= 10) ts *= 1000;
+          const dateObj = new Date(ts);
+          if (isNaN(dateObj.getTime())) throw new Error("无效的时间戳");
+          res = `本地时间: ${dateObj.toLocaleString()}\nUTC时间: ${dateObj.toUTCString()}\nISO格式: ${dateObj.toISOString()}`;
+          break;
+        case 'date2timestamp':
+          const d = new Date(textInput.trim());
+          if (isNaN(d.getTime())) throw new Error("请输入有效的日期字符串 (如: 2024-01-01 12:00:00)");
+          res = `毫秒时间戳 (ms): ${d.getTime()}\n秒时间戳 (s): ${Math.floor(d.getTime() / 1000)}`;
+          break;
+        case 'b64encode': 
+          res = btoa(unescape(encodeURIComponent(textInput))); 
+          break;
+        case 'b64decode': 
+          res = decodeURIComponent(escape(atob(textInput))); 
+          break;
+        case 'urlencode': 
+          res = encodeURIComponent(textInput); 
+          break;
+        case 'urldecode': 
+          res = decodeURIComponent(textInput); 
+          break;
+        case 'uuid':
+          let newUuid = '';
+          if (crypto.randomUUID) {
+            newUuid = crypto.randomUUID();
+          } else {
+            newUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+            });
+          }
+          res = textInput ? textInput + '\n' + newUuid : newUuid; 
+          break;
+        case 'sha256':
+          if (!window.isSecureContext && window.location.protocol !== 'file:') {
+             throw new Error("SHA-256 需要在 HTTPS 或本地环境下运行");
+          }
+          const msgBuffer = new TextEncoder().encode(textInput);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          res = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          break;
+        default: break;
+      }
+      setOutput(res);
+    } catch (e) {
+      setOutput(`等待输入正确格式... (${e.message})`);
+    }
+  };
 
-      return (
-        <div className="flex flex-col h-full space-y-4 max-w-5xl mx-auto w-full">
+  // 2. 按钮点击事件：手动调用 processText
+  const handleToolClick = (type) => {
+    setActiveTool(type);
+    processText(type, input);
+    
+    // 如果是点击生成 UUID，给个提示
+    if (type === 'uuid') {
+      showToast("已生成新的 UUID", "success");
+    }
+  };
+
+  // 3. 输入框改变事件：手动调用 processText（实现实时转换）
+  const handleInputChange = (e) => {
+    const newVal = e.target.value;
+    setInput(newVal);
+    // 直接把 newVal 传进去，不需要等 setInput 的异步更新
+    processText(activeTool, newVal);
+  };
+
+  const getVariant = (type) => activeTool === type ? 'primary' : 'outline';
+
+  return (
+    <div className="flex flex-col h-full space-y-4 max-w-5xl mx-auto w-full">
+      
+      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm shrink-0">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button onClick={() => handleToolClick('url2json')} variant={getVariant('url2json')} icon="link">URL 转 JSON</Button>
+          <Button onClick={() => handleToolClick('json2url')} variant={getVariant('json2url')} icon="code">JSON 转 URL</Button>
+          <Button onClick={() => handleToolClick('jwt')} variant={getVariant('jwt')} icon="key">JWT 解码</Button>
+          <Button onClick={() => handleToolClick('timestamp2date')} variant={getVariant('timestamp2date')} icon="clock">时间戳转日期</Button>
+          <Button onClick={() => handleToolClick('date2timestamp')} variant={getVariant('date2timestamp')} icon="calendar">日期转时间戳</Button>
+          <Button onClick={() => handleToolClick('uuid')} variant={getVariant('uuid')} icon="fingerprint">生成 UUID</Button>
+          <Button onClick={() => handleToolClick('sha256')} variant={getVariant('sha256')} icon="shield-halved">SHA-256 哈希</Button>
+          <Button onClick={() => handleToolClick('b64encode')} variant={getVariant('b64encode')}>Base64 编码</Button>
+          <Button onClick={() => handleToolClick('b64decode')} variant={getVariant('b64decode')}>Base64 解码</Button>
+          <Button onClick={() => handleToolClick('urlencode')} variant={getVariant('urlencode')}>URL 编码</Button>
+          <Button onClick={() => handleToolClick('urldecode')} variant={getVariant('urldecode')}>URL 解码</Button>
           
-          {/* 工具按钮面板，增加了列数以适应新功能 */}
-          <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm shrink-0">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-              <Button onClick={() => processText('url2json')} variant="primary" icon="link">URL 参数转 JSON</Button>
-              <Button onClick={() => processText('json2url')} variant="secondary" icon="code">JSON 转 URL 参数</Button>
-              <Button onClick={() => processText('jwt')} variant="secondary" icon="key">JWT 解码解析</Button>
-              <Button onClick={() => processText('uuid')} variant="secondary" icon="fingerprint">生成 UUID</Button>
-              <Button onClick={() => processText('sha256')} variant="secondary" icon="shield-halved">SHA-256 哈希</Button>
-              
-              <Button onClick={() => processText('b64encode')} variant="outline" className="text-xs">Base64 编码</Button>
-              <Button onClick={() => processText('b64decode')} variant="outline" className="text-xs">Base64 解码</Button>
-              <Button onClick={() => processText('urlencode')} variant="outline" className="text-xs">URL 编码</Button>
-              <Button onClick={() => processText('urldecode')} variant="outline" className="text-xs">URL 解码</Button>
-              <Button onClick={() => { setInput(''); setOutput(''); }} variant="danger" icon="trash-can" className="text-xs">清空全部</Button>
-            </div>
-          </div>
+          <Button 
+            onClick={() => { setInput(''); setOutput(''); }} 
+            variant="danger" 
+            icon="trash-can" 
+            className="ml-auto"
+          >
+            清空输入
+          </Button>
+        </div>
+      </div>
 
-          <div className="flex flex-col space-y-4 flex-1 min-h-0">
-            <div className="flex-1">
-              <TextAreaPanel 
-                label="待处理文本 / 输入区" 
-                value={input} 
-                onChange={(e) => setInput(e.target.value)} 
-                placeholder="在此输入或粘贴需要处理的字符串 (例如: a=1&b=2 或 eyJhbGci...)" 
-                extraAction={
-                  <button onClick={() => setInput(output)} className="text-xs text-orange-600 hover:bg-orange-50 border border-orange-200 px-2 py-1 rounded transition-colors" title="将结果内容移动到输入区">
-                    <i className="fas fa-arrow-up mr-1"></i>结果上移
-                  </button>
-                }
-              />
-            </div>
-            
-            <div className="flex justify-center items-center py-1">
-              <div className="w-8 h-8 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
-                <i className="fas fa-arrow-down text-gray-400"></i>
-              </div>
-            </div>
-            
-            <div className="flex-1">
-              <TextAreaPanel 
-                label="处理结果 / 输出区" 
-                value={output} 
-                readOnly 
-                placeholder="计算/解析的结果..." 
-                extraAction={
-                  <button onClick={() => copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors">
-                    <i className="fas fa-copy"></i>
-                  </button>
-                }
-              />
-            </div>
+      <div className="flex flex-col space-y-4 flex-1 min-h-0">
+        <div className="flex-1">
+          <TextAreaPanel 
+            label="待处理文本 / 输入区" 
+            value={input} 
+            onChange={handleInputChange} // 使用新的 handleInputChange
+            placeholder="实时处理输入内容 (例如: 1704067200000 或 a=1&b=2)" 
+            extraAction={
+              <button onClick={() => { setInput(output); processText(activeTool, output); }} className="text-xs text-orange-600 hover:bg-orange-50 border border-orange-200 px-2 py-1 rounded transition-colors" title="将结果内容移动到输入区">
+                <i className="fas fa-arrow-up mr-1"></i>结果上移
+              </button>
+            }
+          />
+        </div>
+        
+        <div className="flex justify-center items-center py-1">
+          <div className="w-8 h-8 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
+            <i className="fas fa-arrow-down text-gray-400"></i>
           </div>
         </div>
-      );
-    };
+        
+        <div className="flex-1">
+          <TextAreaPanel 
+            label="处理结果 / 输出区" 
+            value={output} 
+            readOnly 
+            placeholder="计算/解析的结果将实时显示在这里..." 
+            extraAction={
+              <button onClick={() => window.copyToClipboard && window.copyToClipboard(output, () => showToast("复制成功", "success"), () => showToast("复制失败", "error"))} className="text-gray-400 hover:text-orange-600 transition-colors">
+                <i className="fas fa-copy"></i>
+              </button>
+            }
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
     
     const DevReference = ({ showToast }) => {
       const [activeSubject, setActiveSubject] = useState('mysql-types');
