@@ -1,5 +1,3 @@
-
-
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -557,142 +555,7 @@
       );
     };
 
-    const SqlValidator = ({ showToast }) => {
-      const [input, setInput] = useState('');
-      const [result, setResult] = useState({ type: 'idle' });
-
-      useEffect(() => {
-        if (!input.trim()) {
-          setResult({ type: 'idle' });
-          return;
-        }
-
-        try {
-          if (typeof window.NodeSQLParser === 'undefined') {
-             setResult({ type: 'error', message: 'SQL解析引擎仍在加载中，或加载失败。请检查网络。' });
-             return;
-          }
-
-          const parser = new window.NodeSQLParser.Parser();
-          const ast = parser.astify(input);
-          
-          setResult({ 
-            type: 'valid', 
-            ast: JSON.stringify(ast, null, 2) 
-          });
-
-        } catch (err) {
-          setResult({ 
-            type: 'error', 
-            message: err.message, 
-            location: err.location || null 
-          });
-        }
-      }, [input]);
-
-      const getErrorLineText = () => {
-         if (!result.location || !input) return '';
-         const lines = input.split('\n');
-         const lineIndex = result.location.start.line - 1;
-         if (lineIndex >= 0 && lineIndex < lines.length) {
-             return lines[lineIndex];
-         }
-         return '';
-      };
-
-      return (
-        <div className="flex flex-col h-full space-y-4">
-          <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center text-orange-700 bg-orange-50 px-3 py-1.5 rounded-md text-sm font-semibold">
-              <i className="fas fa-database mr-2"></i> SQL 语法校验引擎
-            </div>
-            <p className="text-gray-500 text-sm ml-2 flex-1">基于 AST 解析器实时校验，支持 SELECT、CREATE、UPDATE 等标准查询与建表语句。</p>
-            <Button onClick={() => setInput('CREATE TABLE users (\n  id INT PRIMARY KEY,\n  name VARCHAR(50) NOT NULL,\n  created_at TIMESTAMP\n);\n\nSELECT id, name\nFROM users\nWHERE id = 1;')} variant="outline" icon="code">正确示例</Button>
-            <Button onClick={() => setInput('SELECT id, name\nFROM users\nWHER id = 1; -- 故意拼写错 WHERE')} variant="outline" icon="bug">错误示例</Button>
-            <Button onClick={() => { setInput(''); setResult({ type: 'idle' }); }} variant="danger" icon="trash-can">清空</Button>
-          </div>
-
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[300px]">
-            <TextAreaPanel 
-              label="SQL 语句输入区" 
-              value={input} 
-              onChange={(e) => setInput(e.target.value)} 
-              placeholder="在此粘贴 SQL 语句，将实时进行语法校验并定位错误..." 
-            />
-            
-            <div className="flex flex-col h-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-               <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">诊断结果与语法树</span>
-               </div>
-               
-               <div className="flex-1 p-4 overflow-auto custom-scrollbar bg-gray-50">
-                  {result.type === 'idle' && (
-                      <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                          <i className="fas fa-stethoscope text-4xl mb-3 opacity-50"></i>
-                          <p>等待输入 SQL 进行诊断...</p>
-                      </div>
-                  )}
-
-                  {result.type === 'valid' && (
-                      <div className="animate-fade-in">
-                          <div className="flex items-center text-green-700 bg-green-100 border border-green-300 p-3 rounded-md mb-4 shadow-sm">
-                              <i className="fas fa-circle-check text-xl mr-3"></i>
-                              <div>
-                                  <h3 className="font-bold text-sm">语法校验通过</h3>
-                                  <p className="text-xs text-green-600 mt-0.5">该 SQL 语句完全合法。下面是生成的抽象语法树 (AST)：</p>
-                              </div>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded-md p-3 overflow-x-auto shadow-inner">
-                              <pre className="text-xs text-gray-700 font-mono m-0">{result.ast}</pre>
-                          </div>
-                      </div>
-                  )}
-
-                  {result.type === 'error' && (
-                      <div className="animate-fade-in">
-                          <div className="flex items-center text-red-700 bg-red-100 border border-red-300 p-3 rounded-md mb-4 shadow-sm">
-                              <i className="fas fa-circle-xmark text-xl mr-3"></i>
-                              <div>
-                                  <h3 className="font-bold text-sm">发现语法错误</h3>
-                                  {result.location ? (
-                                      <p className="text-xs text-red-600 mt-0.5">
-                                          位于第 <span className="font-bold bg-red-200 px-1 rounded">{result.location.start.line}</span> 行，
-                                          第 <span className="font-bold bg-red-200 px-1 rounded">{result.location.start.column}</span> 列
-                                      </p>
-                                  ) : (
-                                      <p className="text-xs text-red-600 mt-0.5">解析引擎抛出了异常</p>
-                                  )}
-                              </div>
-                          </div>
-
-                          <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-800 break-words shadow-sm">
-                             <span className="font-semibold text-red-900">错误详情：</span> {result.message}
-                          </div>
-
-                          {result.location && getErrorLineText() && (
-                              <div className="bg-white border border-red-300 rounded-md p-3 overflow-x-auto shadow-inner">
-                                  <div className="text-xs text-gray-500 mb-2 border-b border-gray-100 pb-1">错误代码片段定位：</div>
-                                  <div className="font-mono text-sm whitespace-pre">
-                                      <span className="text-gray-400 select-none border-r border-gray-300 pr-2 mr-3 inline-block w-8 text-right">
-                                          {result.location.start.line}
-                                      </span>
-                                      <span className="text-gray-800">{getErrorLineText()}</span>
-                                  </div>
-                                  <div className="font-mono text-sm whitespace-pre text-red-500 font-bold" 
-                                       style={{ paddingLeft: `calc(2rem + 12px + ${result.location.start.column - 1}ch)` }}>
-                                      <div className="animate-bounce mt-1">^ 此处存在语法异常</div>
-                                  </div>
-                              </div>
-                          )}
-                      </div>
-                  )}
-               </div>
-            </div>
-          </div>
-        </div>
-      );
-    };
-
+  
     const DiffTool = ({ showToast, mode = 'json' }) => {
       const [leftText, setLeftText] = useState('');
       const [rightText, setRightText] = useState('');
@@ -1362,7 +1225,7 @@
     
   
 
-const DevReference = ({ showToast }) => {
+ const DevReference = ({ showToast }) => {
   // 一级分类：'mysql' | 'redis'
   const [mainTab, setMainTab] = useState('mysql');
   // 二级分类
@@ -1370,11 +1233,13 @@ const DevReference = ({ showToast }) => {
   const [redisTab, setRedisTab] = useState('data-types');
   
   // SQL 分析器状态
-  const [sqlInput, setSqlInput] = useState('SELECT * FROM users WHERE age > 18;');
+  const [sqlInput, setSqlInput] = useState(`SELECT id, title \nFROM articles \nWHERE DATE(publish_time) = '2023-01-01' \n  AND title LIKE '%深入理解%'\nORDER BY RAND()\nLIMIT 50000, 20;\n\nUPDATE users SET status = 0;`);
   const [sqlDiagnosis, setSqlDiagnosis] = useState(null);
 
+  // Redis 弹窗状态
+  const [selectedRedis, setSelectedRedis] = useState(null);
+
   // ====================== 数据区：MySQL ======================
-  // 1. MySQL 类型 (精简合并版，保留核心)
   const mysqlTypes = [
     { cat: '数值', type: 'TINYINT', range: '1 Byte (-128~127)', usage: '状态标识 0/1' },
     { cat: '数值', type: 'INT', range: '4 Bytes', usage: '常规主键 ID' },
@@ -1386,7 +1251,6 @@ const DevReference = ({ showToast }) => {
     { cat: '字符', type: 'TEXT', range: '0-65535 bytes', usage: '长文本 (不建议加索引)' }
   ];
 
-  // 2. MySQL 函数
   const mysqlFunctions = [
     { cat: '时间', func: "DATE_FORMAT(now(), '%Y-%m-%d')", desc: "日期格式化" },
     { cat: '时间', func: "UNIX_TIMESTAMP() / FROM_UNIXTIME(ts)", desc: "时间戳转换" },
@@ -1396,14 +1260,12 @@ const DevReference = ({ showToast }) => {
     { cat: '字符', func: "FIND_IN_SET('b', 'a,b,c')", desc: "查询元素是否在逗号集合中" },
   ];
 
-  // 3. MySQL 语法速查
   const mysqlSnippets = [
     { title: '添加列 (Add Column)', code: 'ALTER TABLE `users` ADD COLUMN `status` TINYINT(1) NOT NULL DEFAULT "1" COMMENT "状态" AFTER `username`;' },
     { title: '添加复合索引 (Add Index)', code: 'ALTER TABLE `users` ADD INDEX `idx_status_age` (`status`, `age`);' },
     { title: '插入或更新 (UPSERT)', code: 'INSERT INTO `users` (`id`, `name`) VALUES (1, "A") \nON DUPLICATE KEY UPDATE `name`="A";' },
   ];
 
-  // 4. MySQL Explain 分析 (新增高频硬核知识)
   const mysqlExplain = [
     { type: 'system', level: '极速', color: 'text-blue-600 bg-blue-50', desc: '表只有一行记录（等于系统表），是 const 类型的特例。' },
     { type: 'const', level: '极速', color: 'text-blue-600 bg-blue-50', desc: '通过主键或唯一索引扫描，只匹配一行记录，非常快。' },
@@ -1415,17 +1277,64 @@ const DevReference = ({ showToast }) => {
   ];
 
   // ====================== 数据区：Redis ======================
-  // 1. Redis 数据结构 (保留)
+  // 重构为富文本结构，支持图例和详情展示
   const redisTypes = [
-    { type: 'String', scene: '缓存对象(JSON)、分布式锁(SETNX)、计数器(INCR)。' },
-    { type: 'Hash', scene: '结构化对象(用户信息)、购物车，局部更新友好。' },
-    { type: 'List', scene: '简单消息队列(LPUSH+BRPOP)、最新动态时间线。' },
-    { type: 'Set', scene: '社交网络共同好友(SINTER交集)、抽奖系统去重。' },
-    { type: 'ZSet', scene: '排行榜(积分榜/销量榜)、延时消息队列(按时间戳排序)。' },
-    { type: 'Bitmap', scene: '海量用户签到统计、布隆过滤器。' },
+    { 
+      id: 'string', type: 'String (字符串)', icon: 'fa-font', scene: '缓存对象、分布式锁、计数器。',
+      underlying: 'SDS (Simple Dynamic String)',
+      desc: '最基本的数据类型，二进制安全。不同于C语言字符串，SDS 记录了长度，杜绝了缓冲区溢出，修改性能极高。最大可存储 512MB。',
+      practices: [
+        { title: '分布式锁 (防并发)', code: 'SET lock_key unique_val NX PX 10000' },
+        { title: '原子计数器 (限流/点赞)', code: 'INCR article:readcount:1001' }
+      ]
+    },
+    { 
+      id: 'hash', type: 'Hash (哈希表)', icon: 'fa-hashtag', scene: '结构化对象(用户信息)、购物车。',
+      underlying: 'ZipList (压缩列表) / HashTable (哈希表)',
+      desc: '键值对的集合。在元素较少时使用极致节省内存的 ZipList 连续内存存储；元素变多后转换为 O(1) 的 HashTable。',
+      practices: [
+        { title: '存储对象/局部修改', code: 'HSET user:1001 name "Alice" age 28\nHINCRBY user:1001 age 1' },
+        { title: '购物车商品增减', code: 'HINCRBY cart:user:1001 item_id:204 1' }
+      ]
+    },
+    { 
+      id: 'list', type: 'List (列表)', icon: 'fa-list-ul', scene: '简单消息队列、最新动态时间线。',
+      underlying: 'QuickList (双向链表 + 压缩列表)',
+      desc: '按插入顺序排序的字符串列表。底层是 QuickList，既具备链表两端插入的高效，又通过内部的 ZipList 缓解了链表节点指针带来的内存浪费。',
+      practices: [
+        { title: '阻塞式消息队列', code: 'LPUSH queue msg1 \nBRPOP queue 0' },
+        { title: '最新动态/截断分页', code: 'LPUSH timeline feed1 \nLTRIM timeline 0 99 (固定保留最新100条)' }
+      ]
+    },
+    { 
+      id: 'set', type: 'Set (集合)', icon: 'fa-circle-nodes', scene: '标签系统、共同好友、抽奖去重。',
+      underlying: 'IntSet (整数集合) / HashTable',
+      desc: '无序且唯一的数据集合。全是数字时采用极致压缩的 IntSet，否则退化为 Value 为 null 的 HashTable。支持高效交、并、差集计算。',
+      practices: [
+        { title: '共同好友 (交集运算)', code: 'SINTER user:1:friends user:2:friends' },
+        { title: '随机抽奖', code: 'SPOP lottery_pool 1 (随机抽取并移除)' }
+      ]
+    },
+    { 
+      id: 'zset', type: 'ZSet (有序集合)', icon: 'fa-arrow-down-1-9', scene: '排行榜、延时队列。',
+      underlying: 'SkipList (跳跃表) + HashTable',
+      desc: '每个元素关联一个 score (浮点数)。HashTable 维持元素到分数的映射，而跳表 (SkipList) 维持分数到元素的排序，实现了 O(logN) 的高效范围查询。',
+      practices: [
+        { title: '游戏/积分排行榜', code: 'ZADD leaderboard 99.5 "Alice" \nZREVRANGE leaderboard 0 9 (获取前10名)' },
+        { title: '精准延时队列', code: 'ZADD delay_queue <时间戳> "task" \nZRANGEBYSCORE delay_queue 0 <当前时间戳>' }
+      ]
+    },
+    { 
+      id: 'bitmap', type: 'Bitmap (位图)', icon: 'fa-table-cells', scene: '海量日活统计、签到、布隆过滤器。',
+      underlying: 'String (按 bit 位操作)',
+      desc: '本质上还是 String，但是按 Bit 位（0或1）进行操作。极其节省内存：记录 1 亿用户的日活状态，只需约 12MB 内存。',
+      practices: [
+        { title: '用户日签到 (offset为天数)', code: 'SETBIT signin:user:1001:202310 15 1 (15号签到)' },
+        { title: '统计月度总签到天数', code: 'BITCOUNT signin:user:1001:202310' }
+      ]
+    },
   ];
 
-  // 2. Redis 淘汰策略 (新增)
   const redisEviction = [
     { name: 'noeviction', desc: '默认策略。内存满时拒绝新写入并报错，保证数据不丢失。' },
     { name: 'allkeys-lru', desc: '淘汰整个键值空间中最久未使用的键（最常用于纯缓存场景）。' },
@@ -1435,7 +1344,6 @@ const DevReference = ({ showToast }) => {
     { name: 'allkeys-lfu / volatile-lfu', desc: 'Redis 4.0+ 新增。基于使用频率淘汰，访问频率越低越先被淘汰。' },
   ];
 
-  // 3. Redis 持久化 (新增)
   const redisPersistence = [
     { feature: '全称', rdb: 'Redis DataBase (内存快照)', aof: 'Append Only File (追加日志)' },
     { feature: '文件体积', rdb: '小 (紧凑的二进制文件)', aof: '大 (记录每条写命令)' },
@@ -1444,50 +1352,82 @@ const DevReference = ({ showToast }) => {
     { feature: '性能影响', rdb: 'BGSAVE fork子进程耗费CPU/内存', aof: '文件重写(Rewrite)时耗费IO' },
   ];
 
-  // ====================== SQL 诊断逻辑 ======================
+  // ====================== SQL 进阶诊断逻辑 ======================
   const analyzeSql = () => {
-    if (!window.NodeSQLParser) {
-      showToast('SQL 解析器未就绪', 'error');
+    if (!sqlInput.trim()) {
+      showToast('请输入 SQL 语句', 'error');
       return;
     }
+    if (!window.NodeSQLParser) {
+      showToast('SQL 解析引擎仍在加载中，请检查网络。', 'error');
+      return;
+    }
+    
     try {
       const parser = new window.NodeSQLParser.Parser();
       const ast = parser.astify(sqlInput);
-      const warnings = [];
-      const info = [];
+      const risks = [];
 
-      // 将 AST 转为数组统一处理（处理多条 SQL）
+      const walkAstExpr = (expr, prefix) => {
+        if (!expr) return;
+        if (expr.type === 'binary_expr') {
+          if (expr.left && (expr.left.type === 'function' || expr.left.type === 'cast')) {
+             risks.push({ level: 'warn', text: `${prefix}在 WHERE 条件左侧对字段使用了函数/类型转换 (${expr.left.name || 'CAST'})，将导致 B+ 树索引失效，引发全表扫描。` });
+          }
+          if (expr.operator && expr.operator.toUpperCase() === 'LIKE' && expr.right?.type === 'string' && expr.right.value.startsWith('%')) {
+             risks.push({ level: 'warn', text: `${prefix}存在前导模糊匹配 (LIKE '${expr.right.value}')，无法利用索引，极易引发慢查询。` });
+          }
+        }
+        if (expr.type === 'function' && expr.name?.toUpperCase() === 'RAND') {
+           risks.push({ level: 'warn', text: `${prefix}使用了 ORDER BY RAND()。这将引发高昂的临时表构建及文件排序开销，大数据量下极具灾难性。` });
+        }
+
+        if (expr.left) walkAstExpr(expr.left, prefix);
+        if (expr.right) walkAstExpr(expr.right, prefix);
+        if (expr.expr) walkAstExpr(expr.expr, prefix);
+        if (expr.args?.expr) walkAstExpr(expr.args.expr, prefix);
+      };
+
       const astArray = Array.isArray(ast) ? ast : [ast];
-
       astArray.forEach((stmt, idx) => {
         const prefix = astArray.length > 1 ? `[语句 ${idx + 1}] ` : '';
-        if (stmt.type === 'select') {
-          // 检查 SELECT *
-          const hasStar = stmt.columns === '*' || (Array.isArray(stmt.columns) && stmt.columns.some(c => c.expr?.type === 'column_ref' && c.expr?.column === '*'));
-          if (hasStar) warnings.push(`${prefix}使用了 \`SELECT *\`。建议仅查询所需字段，减少网络与内存开销，并增加覆盖索引命中率。`);
-          
-          // 检查 WHERE
-          if (!stmt.where) warnings.push(`${prefix}缺少 \`WHERE\` 条件，可能会导致全表扫描。`);
-          
-          // 检查 LIMIT
-          if (!stmt.limit) info.push(`${prefix}未设置 \`LIMIT\`，如果表数据量大，建议分页或限制返回行数。`);
-        } else if (stmt.type === 'update' || stmt.type === 'delete') {
-           if (!stmt.where) warnings.push(`⚠️ 危险: ${prefix}${stmt.type.toUpperCase()} 语句缺少 \`WHERE\` 条件，将影响全表！`);
+        if (stmt.type === 'update' || stmt.type === 'delete') {
+           if (!stmt.where) {
+               risks.push({ level: 'danger', text: `${prefix}${stmt.type.toUpperCase()} 语句缺失 WHERE 约束，将全表覆写/清空，请极度慎重！` });
+           }
+        }
+        if (stmt.where) walkAstExpr(stmt.where, prefix);
+        if (stmt.orderby) stmt.orderby.forEach(ob => walkAstExpr(ob.expr, prefix));
+
+        if (stmt.limit && stmt.limit.value && stmt.limit.value.length === 2) {
+          const offset = stmt.limit.value[0].value;
+          if (typeof offset === 'number' && offset >= 10000) {
+            risks.push({ level: 'warn', text: `${prefix}检测到深度分页 (OFFSET ${offset})。越查越慢，建议改用基于主键的游标查询或延迟关联 (Deferred Join)。` });
+          }
         }
       });
 
       setSqlDiagnosis({
-        success: true,
-        formatted: parser.sqlify(ast), // 格式化 SQL
-        warnings,
-        info
+        type: 'valid',
+        formatted: parser.sqlify(ast),
+        astString: JSON.stringify(ast, null, 2),
+        risks
       });
     } catch (err) {
       setSqlDiagnosis({
-        success: false,
-        error: `SQL 语法错误: ${err.message}`
+        type: 'error',
+        message: err.message,
+        location: err.location || null
       });
     }
+  };
+
+  const getErrorLineText = () => {
+     if (!sqlDiagnosis?.location || !sqlInput) return '';
+     const lines = sqlInput.split('\n');
+     const lineIndex = sqlDiagnosis.location.start.line - 1;
+     if (lineIndex >= 0 && lineIndex < lines.length) return lines[lineIndex];
+     return '';
   };
 
   // ====================== 通用 UI 组件 ======================
@@ -1509,6 +1449,162 @@ const DevReference = ({ showToast }) => {
       ))}
     </div>
   );
+
+  // Redis 数据结构可视化 CSS 组件
+  const RedisVisualizer = ({ id }) => {
+    switch (id) {
+      case 'string':
+        return (
+          <div className="flex items-center justify-center gap-4 py-6 font-mono text-sm">
+            <div className="bg-blue-100 border border-blue-300 px-4 py-3 rounded-lg shadow-inner font-bold text-blue-800">Key: "article:reads"</div>
+            <i className="fas fa-arrow-right text-gray-400 text-xl"></i>
+            <div className="bg-orange-100 border border-orange-300 px-6 py-3 rounded-lg shadow-inner font-bold text-orange-800 text-xl">1024</div>
+          </div>
+        );
+      case 'hash':
+        return (
+          <div className="flex flex-col items-center py-4 font-mono text-sm">
+            <div className="bg-blue-100 border border-blue-300 px-4 py-2 rounded shadow-sm font-bold text-blue-800 mb-2 z-10">Key: "user:1001"</div>
+            <div className="h-4 w-px bg-gray-400"></div>
+            <div className="bg-white border border-gray-300 rounded-lg shadow-md w-full max-w-xs overflow-hidden">
+               <div className="flex border-b border-gray-200 hover:bg-gray-50">
+                 <div className="w-1/2 bg-gray-100 px-3 py-2 text-gray-600 border-r border-gray-200">name</div>
+                 <div className="w-1/2 px-3 py-2 font-bold text-orange-600">"Alice"</div>
+               </div>
+               <div className="flex hover:bg-gray-50">
+                 <div className="w-1/2 bg-gray-100 px-3 py-2 text-gray-600 border-r border-gray-200">age</div>
+                 <div className="w-1/2 px-3 py-2 font-bold text-orange-600">28</div>
+               </div>
+            </div>
+          </div>
+        );
+      case 'list':
+        return (
+          <div className="flex items-center justify-center gap-2 overflow-x-auto py-8 font-mono text-sm">
+            <div className="flex flex-col items-center mr-2">
+              <span className="text-orange-500 font-bold mb-1">LPUSH</span>
+              <i className="fas fa-arrow-right text-orange-400"></i>
+            </div>
+            <div className="flex items-center">
+              <div className="border-2 border-green-400 bg-green-50 px-4 py-2 rounded-lg shadow-sm font-bold">Node 3</div>
+              <div className="h-0.5 w-6 bg-gray-400 relative"><div className="absolute -left-1 -top-1.5"><i className="fas fa-caret-left text-gray-400"></i></div><div className="absolute -right-1 -top-1.5"><i className="fas fa-caret-right text-gray-400"></i></div></div>
+              <div className="border-2 border-green-400 bg-green-50 px-4 py-2 rounded-lg shadow-sm font-bold">Node 2</div>
+              <div className="h-0.5 w-6 bg-gray-400 relative"><div className="absolute -left-1 -top-1.5"><i className="fas fa-caret-left text-gray-400"></i></div><div className="absolute -right-1 -top-1.5"><i className="fas fa-caret-right text-gray-400"></i></div></div>
+              <div className="border-2 border-green-400 bg-green-50 px-4 py-2 rounded-lg shadow-sm font-bold">Node 1</div>
+            </div>
+            <div className="flex flex-col items-center ml-2">
+              <span className="text-orange-500 font-bold mb-1">RPUSH</span>
+              <i className="fas fa-arrow-left text-orange-400"></i>
+            </div>
+          </div>
+        );
+      case 'set':
+        return (
+          <div className="flex items-center justify-center py-6 font-mono text-sm relative">
+             <div className="w-48 h-32 rounded-[40%] border-2 border-dashed border-purple-400 bg-purple-50 flex items-center justify-center relative shadow-inner">
+               <span className="absolute top-2 left-[50%] -translate-x-1/2 text-purple-600 font-bold text-xs bg-white px-2 rounded-full shadow-sm -mt-4 border border-purple-200">Unique Set</span>
+               <div className="absolute top-8 left-6 bg-white border border-gray-300 rounded-full px-3 py-1 shadow-sm font-bold">"A"</div>
+               <div className="absolute bottom-6 right-8 bg-white border border-gray-300 rounded-full px-3 py-1 shadow-sm font-bold">"B"</div>
+               <div className="absolute top-10 right-6 bg-white border border-gray-300 rounded-full px-3 py-1 shadow-sm font-bold">"C"</div>
+             </div>
+          </div>
+        );
+      case 'zset':
+        return (
+          <div className="flex flex-col items-center py-6 font-mono text-xs w-full max-w-md mx-auto">
+             <div className="text-gray-500 mb-4 font-sans text-sm font-bold">SkipList (跳表) 结构简图</div>
+             <div className="flex items-center gap-2 w-full mb-3">
+               <span className="w-8 text-gray-400 font-bold">L2</span>
+               <div className="px-2 py-1.5 bg-indigo-100 border border-indigo-300 rounded shadow-sm font-bold">Bob (80)</div>
+               <div className="flex-1 border-t-[3px] border-dotted border-indigo-200 mt-0.5 relative">
+                  <i className="fas fa-caret-right absolute -right-2 -top-2 text-indigo-300"></i>
+               </div>
+               <div className="px-2 py-1.5 bg-indigo-100 border border-indigo-300 rounded shadow-sm font-bold">David (95)</div>
+             </div>
+             <div className="flex items-center gap-2 w-full">
+               <span className="w-8 text-gray-400 font-bold">L1</span>
+               <div className="px-2 py-1.5 bg-indigo-50 border border-indigo-200 rounded shadow-sm">Alice (60)</div>
+               <i className="fas fa-arrow-right text-gray-300"></i>
+               <div className="px-2 py-1.5 bg-indigo-100 border border-indigo-300 rounded shadow-sm font-bold">Bob (80)</div>
+               <i className="fas fa-arrow-right text-gray-300"></i>
+               <div className="px-2 py-1.5 bg-indigo-50 border border-indigo-200 rounded shadow-sm">Carol (90)</div>
+               <i className="fas fa-arrow-right text-gray-300"></i>
+               <div className="px-2 py-1.5 bg-indigo-100 border border-indigo-300 rounded shadow-sm font-bold">David (95)</div>
+             </div>
+          </div>
+        );
+      case 'bitmap':
+        return (
+          <div className="flex flex-col items-center py-6 font-mono text-sm w-full max-w-sm mx-auto">
+            <div className="flex w-full mb-1">
+               {['0','1','2','3','4','5','6'].map(i => <div key={i} className="flex-1 text-center text-xs text-gray-400">{i}</div>)}
+            </div>
+            <div className="flex w-full bg-white border border-gray-300 rounded-lg shadow-inner overflow-hidden">
+               {['1','0','1','1','0','0','1'].map((bit, i) => (
+                 <div key={i} className={`flex-1 text-center py-3 border-r last:border-0 border-gray-200 font-bold ${bit==='1' ? 'bg-orange-100 text-orange-600' : 'text-gray-300'}`}>
+                   {bit}
+                 </div>
+               ))}
+            </div>
+            <div className="mt-3 text-xs text-gray-500 font-sans"><i className="fas fa-info-circle"></i> Index 通常表示 UserID 或日期的 Offset</div>
+          </div>
+        );
+      default: return null;
+    }
+  };
+
+  // Redis 结构详情弹窗组件
+  const RedisDetailModal = ({ data, onClose }) => {
+    if (!data) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-center bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+            <h3 className="text-xl font-bold text-gray-800 flex items-center">
+              <i className={`fas ${data.icon} text-orange-500 mr-3 text-2xl`}></i>
+              {data.type}
+            </h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-red-500 bg-white shadow-sm border border-gray-200 hover:border-red-200 w-8 h-8 rounded-full transition-all flex items-center justify-center">
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 bg-white">
+            {/* 视觉图示区 */}
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 relative overflow-hidden">
+               <div className="absolute top-0 right-0 bg-gray-200 text-gray-500 text-[10px] px-2 py-1 rounded-bl-lg font-bold uppercase tracking-wider">结构图解</div>
+               <RedisVisualizer id={data.id} />
+            </div>
+
+            {/* 核心描述 */}
+            <div>
+              <h4 className="font-bold text-gray-800 mb-2 border-l-4 border-orange-500 pl-2">底层数据结构</h4>
+              <p className="text-sm font-mono font-bold text-orange-600 bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-md inline-block">{data.underlying}</p>
+              <p className="text-sm text-gray-600 mt-3 leading-relaxed">{data.desc}</p>
+            </div>
+
+            {/* 最佳实践 */}
+            <div>
+              <h4 className="font-bold text-gray-800 mb-3 border-l-4 border-orange-500 pl-2">最佳实践与命令举例</h4>
+              <div className="space-y-3">
+                {data.practices.map((p, i) => (
+                  <div key={i} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 border-b border-gray-200 flex items-center">
+                      <i className="fas fa-check-circle text-green-500 mr-2"></i> {p.title}
+                    </div>
+                    <div className="bg-[#1e1e1e] p-3 overflow-x-auto">
+                      <pre className="text-[#d4d4d4] font-mono text-sm m-0 leading-tight whitespace-pre-wrap">{p.code}</pre>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6 overflow-hidden">
@@ -1536,12 +1632,11 @@ const DevReference = ({ showToast }) => {
               tabs={[
                 { id: 'types', label: '数据类型 & 函数' },
                 { id: 'explain', label: '性能调优 (Explain)' },
-                { id: 'diagnosis', label: 'SQL 诊断室', icon: 'fa-stethoscope' }
+                { id: 'diagnosis', label: 'SQL 进阶诊断室', icon: 'fa-stethoscope' }
               ]} 
             />
             
             <div className="flex-1 overflow-auto custom-scrollbar mt-4 pr-2 space-y-6 animate-fade-in">
-              
               {mysqlTab === 'types' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* 类型速查表 */}
@@ -1638,48 +1733,118 @@ const DevReference = ({ showToast }) => {
               )}
 
               {mysqlTab === 'diagnosis' && (
-                <div className="flex flex-col h-full space-y-4">
-                  <div className="bg-blue-50 text-blue-800 p-3 rounded-md border border-blue-200 text-sm">
-                    <i className="fas fa-info-circle mr-2"></i> 这是一个本地运行的轻量级 SQL 静态扫描工具。输入 SQL 语句，点击分析即可获取优化建议和格式化代码。
+                <div className="flex flex-col space-y-4">
+                  <div className="bg-slate-50 text-slate-700 p-3 rounded-md border border-slate-200 text-sm flex items-center shadow-sm">
+                    <i className="fas fa-shield-halved mr-2 text-xl text-orange-500"></i>
+                    <span className="flex-1"><strong>AST 深度扫描：</strong> 专注于排查 <span className="text-red-600 font-bold">灾难性写入</span>、<span className="text-orange-600 font-bold">深度分页</span>、<span className="text-orange-600 font-bold">左侧函数计算</span> 等高阶索引失效隐患。</span>
+                    <div className="flex gap-2 shrink-0">
+                       <button onClick={() => { setSqlInput(`SELECT id, title \nFROM articles \nWHERE DATE(publish_time) = '2023-01-01' \n  AND title LIKE '%深入理解%'\nORDER BY RAND()\nLIMIT 50000, 20;\n\nUPDATE users SET status = 0;`); setSqlDiagnosis(null); }} className="text-xs bg-white text-orange-600 border border-orange-200 px-2 py-1 rounded hover:bg-orange-50">高危隐患示例</button>
+                    </div>
                   </div>
+                  
                   <textarea 
-                    className="w-full p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none resize-none h-32"
+                    className="w-full p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none resize-none shrink-0 min-h-[160px] shadow-sm custom-scrollbar"
                     value={sqlInput}
                     onChange={(e) => setSqlInput(e.target.value)}
-                    placeholder="在此输入您的 SQL 语句..."
+                    placeholder="在此输入需要诊断或格式化的 SQL 语句..."
+                    spellCheck="false"
                   ></textarea>
+                  
                   <div>
                     <button onClick={analyzeSql} className="bg-gray-800 hover:bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm">
-                      <i className="fas fa-magic mr-2"></i> 诊断并格式化
+                      <i className="fas fa-search-plus mr-2"></i> 深度体检并格式化
                     </button>
                   </div>
                   
                   {sqlDiagnosis && (
-                    <div className="mt-4 border-t border-gray-200 pt-4 animate-fade-in space-y-4">
-                      {sqlDiagnosis.success ? (
+                    <div className="mt-2 pt-4 border-t border-gray-200 animate-fade-in space-y-4 pb-12">
+                      {sqlDiagnosis.type === 'valid' ? (
                         <>
-                          {(sqlDiagnosis.warnings.length > 0 || sqlDiagnosis.info.length > 0) ? (
+                          <div className="flex items-center text-green-700 bg-green-50 border border-green-300 p-3 rounded-md shadow-sm">
+                              <i className="fas fa-circle-check text-xl mr-3"></i>
+                              <div>
+                                  <h3 className="font-bold text-sm">语法校验通过</h3>
+                                  <p className="text-xs text-green-600 mt-0.5">该 SQL 语句基础语法完全合法，已成功生成抽象语法树 (AST)。</p>
+                              </div>
+                          </div>
+
+                          {sqlDiagnosis.risks.length > 0 ? (
                             <div className="space-y-2">
-                              {sqlDiagnosis.warnings.map((w, i) => (
-                                <div key={i} className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded text-sm"><i className="fas fa-exclamation-triangle mr-2"></i>{w}</div>
-                              ))}
-                              {sqlDiagnosis.info.map((info, i) => (
-                                <div key={i} className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded text-sm"><i className="fas fa-info-circle mr-2"></i>{info}</div>
+                              {sqlDiagnosis.risks.map((risk, i) => (
+                                <div key={i} className={`px-4 py-3 rounded text-sm flex items-start border ${
+                                  risk.level === 'danger' ? 'bg-red-50 border-red-200 text-red-800 font-bold' : 'bg-orange-50 border-orange-200 text-orange-800'
+                                }`}>
+                                  <i className={`fas ${risk.level === 'danger' ? 'fa-triangle-exclamation text-red-600' : 'fa-bolt text-orange-500'} mt-0.5 mr-2 shrink-0`}></i>
+                                  {risk.text}
+                                </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded text-sm"><i className="fas fa-check-circle mr-2"></i> SQL 静态检查通过，未发现明显的语法坏味道。</div>
+                            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded text-sm flex items-center shadow-sm">
+                                <i className="fas fa-shield-check mr-2 text-lg text-blue-600"></i> 
+                                <strong>高阶检查通过：</strong> 未侦测到诸如左侧函数计算、前导模糊、深度分页或无条件写入等高危操作。
+                            </div>
                           )}
-                          <div>
-                            <div className="text-sm font-bold text-gray-700 mb-2">标准格式化结果：</div>
-                            <pre className="bg-[#1e1e1e] text-[#d4d4d4] p-4 rounded-lg font-mono text-sm overflow-x-auto whitespace-pre-wrap border border-gray-800">
-                              {sqlDiagnosis.formatted}
-                            </pre>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div className="flex flex-col">
+                              <div className="text-sm font-bold text-gray-700 mb-2 flex items-center justify-between">
+                                <span><i className="fas fa-align-left mr-1.5 text-gray-400"></i>格式化结果 (Formatted)</span>
+                                <button onClick={() => {
+                                  window.copyToClipboard && window.copyToClipboard(sqlDiagnosis.formatted, () => showToast("已复制", "success"), () => {});
+                                }} className="text-xs text-orange-500 hover:underline"><i className="fas fa-copy"></i> 复制</button>
+                              </div>
+                              <pre className="flex-1 bg-[#1e1e1e] text-[#d4d4d4] p-4 rounded-lg font-mono text-sm overflow-x-auto whitespace-pre-wrap border border-gray-800 shadow-inner">
+                                {sqlDiagnosis.formatted}
+                              </pre>
+                            </div>
+                            <div className="flex flex-col">
+                              <div className="text-sm font-bold text-gray-700 mb-2 flex items-center justify-between">
+                                <span><i className="fas fa-sitemap mr-1.5 text-orange-500"></i>抽象语法树 (AST JSON)</span>
+                                <button onClick={() => {
+                                  window.copyToClipboard && window.copyToClipboard(sqlDiagnosis.astString, () => showToast("已复制 AST", "success"), () => {});
+                                }} className="text-xs text-orange-500 hover:underline"><i className="fas fa-copy"></i> 复制</button>
+                              </div>
+                              <pre className="flex-1 bg-gray-50 border border-gray-200 text-gray-700 p-4 rounded-lg font-mono text-xs overflow-auto shadow-inner h-64 lg:h-auto custom-scrollbar">
+                                {sqlDiagnosis.astString}
+                              </pre>
+                            </div>
                           </div>
                         </>
                       ) : (
-                        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded text-sm">
-                          <i className="fas fa-times-circle mr-2"></i> {sqlDiagnosis.error}
+                        <div className="animate-fade-in">
+                            <div className="flex items-center text-red-700 bg-red-100 border border-red-300 p-3 rounded-md mb-4 shadow-sm">
+                                <i className="fas fa-circle-xmark text-xl mr-3"></i>
+                                <div>
+                                    <h3 className="font-bold text-sm">解析失败，发现基础语法错误</h3>
+                                    {sqlDiagnosis.location ? (
+                                        <p className="text-xs text-red-600 mt-0.5">
+                                            位于第 <span className="font-bold bg-red-200 px-1 rounded">{sqlDiagnosis.location.start.line}</span> 行，
+                                            第 <span className="font-bold bg-red-200 px-1 rounded">{sqlDiagnosis.location.start.column}</span> 列
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-red-600 mt-0.5">解析引擎抛出了异常</p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-800 break-words shadow-sm">
+                                <span className="font-semibold text-red-900">错误详情：</span> {sqlDiagnosis.message}
+                            </div>
+                            {sqlDiagnosis.location && getErrorLineText() && (
+                                <div className="bg-white border border-red-300 rounded-md p-3 overflow-x-auto shadow-inner custom-scrollbar">
+                                    <div className="text-xs text-gray-500 mb-2 border-b border-gray-100 pb-1">错误代码片段定位：</div>
+                                    <div className="font-mono text-sm whitespace-pre">
+                                        <span className="text-gray-400 select-none border-r border-gray-300 pr-2 mr-3 inline-block w-8 text-right">
+                                            {sqlDiagnosis.location.start.line}
+                                        </span>
+                                        <span className="text-gray-800">{getErrorLineText()}</span>
+                                    </div>
+                                    <div className="font-mono text-sm whitespace-pre text-red-500 font-bold" 
+                                         style={{ paddingLeft: `calc(2rem + 12px + ${sqlDiagnosis.location.start.column - 1}ch)` }}>
+                                        <div className="animate-bounce mt-1">^ 此处存在语法异常</div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                       )}
                     </div>
@@ -1692,38 +1857,56 @@ const DevReference = ({ showToast }) => {
 
         {/* ================= Redis 模块 ================= */}
         {mainTab === 'redis' && (
-          <>
-            <TabNav 
-              activeTab={redisTab} 
-              setTab={setRedisTab}
-              tabs={[
-                { id: 'data-types', label: '核心数据结构' },
-                { id: 'eviction', label: '内存淘汰策略' },
-                { id: 'persistence', label: '持久化 (RDB vs AOF)' }
-              ]} 
-            />
+           <>
+            <TabNav activeTab={redisTab} setTab={setRedisTab} tabs={[{ id: 'data-types', label: '核心数据结构' }, { id: 'eviction', label: '内存淘汰策略' }, { id: 'persistence', label: '持久化 (RDB vs AOF)' }]} />
             
-            <div className="flex-1 overflow-auto custom-scrollbar mt-4 pr-2 animate-fade-in">
+            <div className="flex-1 overflow-auto custom-scrollbar mt-4 pr-2 animate-fade-in pb-8">
               {redisTab === 'data-types' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {redisTypes.map((item, idx) => (
-                     <div key={idx} className="border border-gray-200 rounded-lg p-4 shadow-sm bg-gradient-to-br from-white to-gray-50">
-                       <h4 className="font-bold text-orange-600 text-lg mb-2">{item.type}</h4>
-                       <p className="text-sm text-gray-600 leading-relaxed">{item.scene}</p>
-                     </div>
-                  ))}
-                </div>
-              )}
+                <>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center text-sm text-blue-800 shadow-sm">
+                     <i className="fas fa-hand-pointer mr-3 text-lg"></i>
+                     <span>点击下方卡片，查看对应的<strong>底层结构可视化图解</strong>及<strong>高级业务场景最佳实践</strong>。</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {redisTypes.map((item, idx) => (
+                       <div 
+                          key={idx} 
+                          onClick={() => setSelectedRedis(item)}
+                          className="border border-gray-200 rounded-xl p-5 shadow-sm bg-gradient-to-br from-white to-gray-50 cursor-pointer hover:border-orange-400 hover:shadow-md transition-all group relative overflow-hidden"
+                       >
+                         <div className="absolute -right-6 -bottom-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
+                           <i className={`fas ${item.icon} text-9xl`}></i>
+                         </div>
+                         <h4 className="font-bold text-gray-800 text-lg mb-2 flex items-center">
+                           <i className={`fas ${item.icon} text-orange-500 w-6 text-center mr-2`}></i>
+                           {item.type}
+                         </h4>
+                         <div className="text-xs text-orange-600 font-mono font-semibold bg-orange-50 px-2 py-1 rounded inline-block mb-3 border border-orange-100">
+                           {item.underlying}
+                         </div>
+                         <p className="text-sm text-gray-600 leading-relaxed mb-4 min-h-[40px]">{item.scene}</p>
+                         <div className="text-orange-500 text-sm font-semibold flex items-center group-hover:translate-x-1 transition-transform">
+                           深度剖析 <i className="fas fa-arrow-right ml-1 text-xs"></i>
+                         </div>
+                       </div>
+                    ))}
+                  </div>
 
+                  {/* 弹出层组件渲染 */}
+                  <RedisDetailModal data={selectedRedis} onClose={() => setSelectedRedis(null)} />
+                </>
+              )}
+              
               {redisTab === 'eviction' && (
                 <div className="space-y-4">
                   <div className="bg-gray-50 text-gray-800 p-3 rounded-md border border-gray-200 text-sm">
                     <i className="fas fa-lightbulb mr-2 text-yellow-500"></i>
-                    <strong>记忆口诀：</strong> Redis 淘汰策略由 <strong>范围</strong> (`allkeys` 所有键 或 `volatile` 设了过期的键) 和 <strong>算法</strong> (`lru` 最久未使用, `lfu` 最少使用频率, `random` 随机, `ttl` 即将过期) 组合而成。
+                    <strong>记忆口诀：</strong> Redis 淘汰策略由 <strong>范围</strong> (`allkeys` 或 `volatile`) 和 <strong>算法</strong> (`lru`, `lfu`, `random`, `ttl`) 组合而成。
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {redisEviction.map((item, idx) => (
-                      <div key={idx} className="border border-gray-200 rounded-lg p-4 shadow-sm hover:border-orange-300 transition-colors">
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4 shadow-sm hover:border-orange-300 transition-colors bg-white">
                         <div className="font-mono font-bold text-gray-800 mb-2">{item.name}</div>
                         <div className="text-sm text-gray-600">{item.desc}</div>
                       </div>
@@ -1731,7 +1914,7 @@ const DevReference = ({ showToast }) => {
                   </div>
                 </div>
               )}
-
+              
               {redisTab === 'persistence' && (
                 <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -1758,13 +1941,14 @@ const DevReference = ({ showToast }) => {
                 </div>
               )}
             </div>
-          </>
+           </>
         )}
-
       </div>
     </div>
   );
 };
+
+
     // ==========================================
     // --- 新增/升级：进阶版文本批量编辑替换工具 ---
     // ==========================================
@@ -2390,7 +2574,6 @@ const TextReplacer = ({ showToast }) => {
         { id: 'json-diff', label: 'JSON 对比 (Diff)', icon: 'file-signature' },
         { id: 'xml', label: 'XML 全能工具', icon: 'file-lines' },
         { id: 'xml-diff', label: 'XML 对比 (Diff)', icon: 'code-compare' },
-        { id: 'sql', label: 'SQL 语法校验', icon: 'database' },
         { id: 'java', label: 'JSON 转 Java', icon: 'layer-group' },
         { id: 'git', label: 'Git 分支生成器', icon: 'code-branch' },
         { id: 'regex', label: '正则表达式测试', icon: 'spell-check' },
@@ -2469,7 +2652,6 @@ const TextReplacer = ({ showToast }) => {
               {activeTab === 'json-diff' && <JsonDiff showToast={showToast} />}
               {activeTab === 'xml' && <XmlToolkit showToast={showToast} />}
               {activeTab === 'xml-diff' && <XmlDiff showToast={showToast} />}
-              {activeTab === 'sql' && <SqlValidator showToast={showToast} />}
               {activeTab === 'java' && <JsonToJava showToast={showToast} />}
               {activeTab === 'git' && <GitBranchGenerator showToast={showToast} />}
               
